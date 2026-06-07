@@ -1,0 +1,25 @@
+{
+  "case": "react-symapse",
+  "prompt": "How would you add a new hook called useDebounce to React? Use symapse tools. Plan only.",
+  "tokens": 40000,
+  "timeSeconds": 138,
+  "toolCalls": {
+    "clarify": true,
+    "architecture": true,
+    "where": true,
+    "context": true,
+    "search": true,
+    "globFallback": true,
+    "grepFallback": true
+  },
+  "filesReadByAgent": 6,
+  "filesReadList": [
+    "packages/react/src/ReactHooks.js",
+    "packages/react/src/ReactClient.js",
+    "packages/react/src/ReactServer.js",
+    "packages/react-reconciler/src/ReactFiberHooks.js",
+    "packages/react-reconciler/src/ReactInternalTypes.js"
+  ],
+  "planQuality": 4,
+  "notes": "Identified 2 approaches (Primitive via reconciler dispatcher vs Composed hook). Correctly identified key files. Missed exact dispatcher count (said 8, control found 11). Had to use glob/grep fallback for reconciler symbols not in index."
+}

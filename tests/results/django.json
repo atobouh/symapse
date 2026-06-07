@@ -1,0 +1,19 @@
+{
+  "repo": "django-main",
+  "language": "Python",
+  "files": 2964,
+  "symapseRun": {
+    "tokens": 57000,
+    "timeSeconds": 79,
+    "planQuality": 4
+  },
+  "controlRun": {
+    "tokens": 310000,
+    "timeSeconds": 540,
+    "planQuality": 5
+  },
+  "comparison": {
+    "tokenReduction": "81%",
+    "accuracyDelta": "minus 1 quality point — correct structure, less line-number specificity"
+  }
+}

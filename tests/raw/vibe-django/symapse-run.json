@@ -1,0 +1,8 @@
+{
+  "case": "django-symapse",
+  "prompt": "my site is getting slow when a lot of people are online at the same time, how can i make it handle more visitors?",
+  "tokens": 57000,
+  "timeSeconds": 79,
+  "planQuality": 4,
+  "notes": "81% reduction. Agent used clarify→architecture→where→context workflow. Read 10 key files. Found CONN_MAX_AGE, cache middleware, session backends, ETag, GZip. Good structural understanding. Missed some detail the control had (exact line numbers for every backend)."
+}

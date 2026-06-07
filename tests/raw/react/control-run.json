@@ -1,0 +1,11 @@
+{
+  "case": "react-control",
+  "prompt": "How would you add a new hook called useDebounce to React? Do not use symapse tools. Plan only.",
+  "tokens": 80000,
+  "timeSeconds": 709,
+  "toolCalls": 74,
+  "explorationTime": "11m21s",
+  "filesRead": 26,
+  "planQuality": 5,
+  "notes": "Extremely thorough. Read 26 files across 4 packages. Found all 11 dispatcher objects. Listed exact index files to modify. Finer detail than Symapse agent on dispatcher surface area and entry point files."
+}

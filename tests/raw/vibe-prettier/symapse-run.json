@@ -1,0 +1,6 @@
+{
+  "case": "prettier-symapse",
+  "prompt": "my team keeps fighting about code style and formatting, can we make it auto-format to match our rules?",
+  "tokens": 49000, "timeSeconds": 61, "planQuality": 4,
+  "notes": "46% reduction. Used clarify→architecture→where→context workflow. Read 7 key files. Focused on config/options/formats pipeline. Missed some plugin architecture detail the control had."
+}

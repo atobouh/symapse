@@ -1,0 +1,10 @@
+{
+  "case": "fzf-control",
+  "prompt": "How would you add a preview window toggle to the fuzzy finder? Do not use symapse tools. Plan only.",
+  "tokens": 68000,
+  "timeSeconds": 97,
+  "toolCalls": 40,
+  "filesRead": 12,
+  "planQuality": 5,
+  "notes": "Explored every source file individually. Found the same answer (feature already exists) but took nearly 2x the tokens and read more files. Excellent code-level detail with line numbers. 40 toolcalls vs Symapse's 7 toolcalls + 2 greps."
+}

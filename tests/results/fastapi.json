@@ -1,0 +1,59 @@
+{
+  "repo": "fastapi-master",
+  "language": "Python",
+  "files": 1124,
+  "symbols": 0,
+  "edges": 0,
+  "symapseRun": {
+    "tokens": 51000,
+    "timeSeconds": 208,
+    "toolCalls": {
+      "clarify": true,
+      "architecture": true,
+      "where": true,
+      "context": true,
+      "search": true,
+      "impact": false,
+      "overlap": "timed out",
+      "deadcode": "unavailable",
+      "conventions": "unavailable"
+    },
+    "filesReadByAgent": 6,
+    "filesReadList": [
+      "fastapi/dependencies/utils.py",
+      "fastapi/params.py",
+      "fastapi/dependencies/models.py",
+      "fastapi/applications.py",
+      "fastapi/routing.py",
+      "tests/test_dependency_cache.py"
+    ],
+    "contextAccuracy": {
+      "correctFiles": [
+        "fastapi/dependencies/utils.py",
+        "fastapi/params.py",
+        "fastapi/dependencies/models.py"
+      ],
+      "noiseFiles": [
+        "tests/test_dependency_cache.py",
+        "fastapi/applications.py"
+      ],
+      "missingFiles": [
+        "fastapi/routing.py"
+      ]
+    },
+    "planQuality": 4,
+    "notes": "Identified 3 approaches (Depends, Special Type, Pre-DI hook). Recommended layered approach. Used 6 files - test file was noise. Overlap timed out on large repo. Conventions/deadcode tools unavailable (old MCP not refreshed)."
+  },
+  "controlRun": {
+    "tokens": 70000,
+    "timeSeconds": 220,
+    "toolCalls": 40,
+    "filesRead": 10,
+    "planQuality": 5,
+    "notes": "Deeper code reading with exact line numbers. Read 10 files including several offset reads. Better precision on exact integration points."
+  },
+  "comparison": {
+    "tokenReduction": "27%",
+    "accuracyDelta": "minus 1 quality point — Symapse missed routing.py integration point until manual read"
+  }
+}

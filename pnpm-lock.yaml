@@ -1,0 +1,32 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  apps/api: {}
+
+  apps/cli: {}
+
+  apps/web: {}
+
+  packages/db: {}
+
+  packages/engine: {}
+
+  packages/mcp:
+    dependencies:
+      '@symapse/db':
+        specifier: workspace:*
+        version: link:../db
+      '@symapse/engine':
+        specifier: workspace:*
+        version: link:../engine
+
+  packages/parser-ts: {}
+
+  packages/shared: {}

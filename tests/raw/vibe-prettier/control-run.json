@@ -1,0 +1,6 @@
+{
+  "case": "prettier-control",
+  "prompt": "my team keeps fighting about code style and formatting, can we make it auto-format to match our rules? do not use symapse tools.",
+  "tokens": 90000, "timeSeconds": 189, "planQuality": 5,
+  "notes": "69 toolcalls, 2m39s exploration. More thorough on plugin architecture and per-language options. Read core-options, JS options, plugin patterns."
+}

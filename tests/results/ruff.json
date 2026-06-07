@@ -1,0 +1,8 @@
+{
+  "repo": "ruff-main",
+  "language": "Rust",
+  "files": 4851,
+  "symapseRun": { "tokens": 42000, "timeSeconds": 127, "planQuality": 4, "notes": "Parser fix helped. Found rule_is_ignored, LintCommonOptions, configuration docs. But still lost — config question doesn't benefit from architecture exploration." },
+  "controlRun": { "tokens": 36000, "timeSeconds": 33, "planQuality": 5 },
+  "comparison": { "tokenReduction": "-17%", "accuracyDelta": "Improved from -205%. Parser fix matters. Still a config question" }
+}

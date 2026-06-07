@@ -1,0 +1,12 @@
+{
+  "name": "@symapse/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"db dev not implemented yet\"",
+    "build": "echo \"db build not implemented yet\"",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"no lint setup yet\""
+  }
+}

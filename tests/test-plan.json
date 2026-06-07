@@ -1,0 +1,66 @@
+{
+  "testPlan": {
+    "description": "Symapse V2 cross-repo accuracy benchmark",
+    "prompts": {
+      "fastapi-master": {
+        "type": "Python web framework",
+        "prompt": "How would you add rate limiting to the FastAPI dependency injection system? Use symapse tools. Give me a plan, no implementation."
+      },
+      "fzf-master": {
+        "type": "Go terminal tool",
+        "prompt": "How would you add a preview window toggle to the fuzzy finder? Use symapse tools. Give me a plan, no implementation."
+      },
+      "react-main": {
+        "type": "JavaScript library",
+        "prompt": "How would you add a new hook called useDebounce to React? Use symapse tools. Give me a plan, no implementation."
+      },
+      "sqlite-amalgamation-master": {
+        "type": "C database engine",
+        "prompt": "How would you add a WAL checkpoint throttle to SQLite? Use symapse tools. Give me a plan, no implementation."
+      }
+    },
+    "control": {
+      "description": "Same prompts but replace 'Use symapse tools' with 'Do not use symapse tools'"
+    }
+  },
+  "resultsTemplate": {
+    "repo": "",
+    "language": "",
+    "files": 0,
+    "symbols": 0,
+    "edges": 0,
+    "symapseRun": {
+      "tokens": 0,
+      "toolCalls": {
+        "clarify": false,
+        "architecture": false,
+        "where": false,
+        "context": false,
+        "search": false,
+        "impact": false,
+        "overlap": false,
+        "deadcode": false,
+        "conventions": false
+      },
+      "filesReadByAgent": 0,
+      "planQuality": "unrated",
+      "notes": "",
+      "contextAccuracy": {
+        "correctFiles": [],
+        "noiseFiles": [],
+        "missingFiles": []
+      }
+    },
+    "controlRun": {
+      "tokens": 0,
+      "toolCalls": 0,
+      "filesRead": 0,
+      "planQuality": "unrated",
+      "notes": ""
+    },
+    "comparison": {
+      "tokenReduction": "0%",
+      "accuracyDelta": "unrated"
+    }
+  }
+}

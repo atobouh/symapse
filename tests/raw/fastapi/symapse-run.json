@@ -1,0 +1,8 @@
+{
+  "case": "fastapi-symapse",
+  "prompt": "How would you add rate limiting to the FastAPI dependency injection system? Use symapse tools. Plan only, no implementation.",
+  "tokens": 51000,
+  "timeSeconds": 208,
+  "fullThinking": "The user wants me to plan how to add rate limiting to the FastAPI dependency injection system, using Symapse tools only. No implementation. Let me start by clarifying the request, then understand the architecture, find where dependency injection lives, and get context.\n\nTool calls: symapse_clarify → symapse_architecture → symapse_where → symapse_search 'dependency' → symapse_context → symapse_overlap (timed out) → reads: dependencies/utils.py, params.py, dependencies/models.py, applications.py, routing.py, test_dependency_cache.py → conventions unavailable → deadcode unavailable",
+  "outcome": "Identified 3 approaches (A: Depends-style, B: Special type injection, C: Pre-DI route hook). Recommended layered architecture combining A+C. Plan quality 4/5."
+}

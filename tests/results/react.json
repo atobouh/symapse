@@ -1,0 +1,36 @@
+{
+  "repo": "react-main",
+  "language": "JavaScript",
+  "files": 4365,
+  "symbols": 0,
+  "edges": 0,
+  "symapseRun": {
+    "tokens": 40000,
+    "timeSeconds": 138,
+    "filesReadByAgent": 6,
+    "planQuality": 4,
+    "contextAccuracy": {
+      "correctFiles": [
+        "packages/react/src/ReactHooks.js",
+        "packages/react/src/ReactClient.js",
+        "packages/react-reconciler/src/ReactFiberHooks.js",
+        "packages/react-reconciler/src/ReactInternalTypes.js"
+      ],
+      "noiseFiles": [],
+      "missingFiles": [
+        "packages/react/index.js"
+      ]
+    },
+    "notes": "React index files (index.js, index.experimental.js, etc.) not in context. Reconciler symbols not indexed — had to glob/grep. Identified correct architecture pattern."
+  },
+  "controlRun": {
+    "tokens": 80000,
+    "timeSeconds": 709,
+    "filesRead": 26,
+    "planQuality": 5
+  },
+  "comparison": {
+    "tokenReduction": "50%",
+    "accuracyDelta": "minus 1 quality point — Symapse missed entry point files and exact dispatcher count"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "case": "fzf-symapse",
+  "prompt": "How would you add a preview window toggle to the fuzzy finder? Use symapse tools. Plan only.",
+  "tokens": 38000,
+  "timeSeconds": 66,
+  "toolCalls": {
+    "clarify": true,
+    "architecture": true,
+    "where": true,
+    "context": true,
+    "search": true,
+    "impact": false,
+    "grepFallback": true
+  },
+  "filesReadByAgent": 5,
+  "filesReadList": [
+    "test/test_preview.rb",
+    "test/test_layout.rb",
+    "test/lib/common.rb",
+    "src/options.go",
+    "src/terminal.go"
+  ],
+  "planQuality": 5,
+  "notes": "Agent correctly identified that toggle-preview already exists in fzf. Context returned accurate test files. Go symbol indexing was incomplete - grep used as fallback for 'toggle-preview' symbols. Smart enough to re-read the question and confirm the feature already exists rather than redundantly planning it."
+}

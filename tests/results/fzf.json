@@ -1,0 +1,48 @@
+{
+  "repo": "fzf-master",
+  "language": "Go",
+  "files": 90,
+  "symbols": 0,
+  "edges": 0,
+  "symapseRun": {
+    "tokens": 38000,
+    "timeSeconds": 66,
+    "toolCalls": {
+      "clarify": true,
+      "architecture": true,
+      "where": true,
+      "context": true,
+      "search": true,
+      "impact": false,
+      "overlap": false,
+      "grepFallback": true
+    },
+    "filesReadByAgent": 5,
+    "contextAccuracy": {
+      "correctFiles": [
+        "test/test_preview.rb",
+        "test/test_layout.rb"
+      ],
+      "noiseFiles": [
+        "test/lib/common.rb"
+      ],
+      "missingFiles": [
+        "src/options.go",
+        "src/terminal.go"
+      ]
+    },
+    "planQuality": 5,
+    "notes": "Go symbol indexing incomplete — grep fallback needed for 'toggle-preview'. Context returned test files (accurate for proving feature exists) but missed the actual source implementation files."
+  },
+  "controlRun": {
+    "tokens": 68000,
+    "timeSeconds": 97,
+    "filesRead": 12,
+    "planQuality": 5,
+    "notes": "Same conclusion but 2x tokens."
+  },
+  "comparison": {
+    "tokenReduction": "44%",
+    "accuracyDelta": "equal quality — both reached same correct conclusion"
+  }
+}

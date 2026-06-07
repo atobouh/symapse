@@ -1,0 +1,17 @@
+{
+  "case": "sqlite-symapse",
+  "prompt": "How would you add a WAL checkpoint throttle to SQLite? Use symapse tools. Plan only.",
+  "tokens": 44000,
+  "timeSeconds": 115,
+  "toolCalls": {
+    "clarify": true,
+    "architecture": true,
+    "where": true,
+    "context": true,
+    "search": true,
+    "grepFallback": true
+  },
+  "filesReadByAgent": 5,
+  "planQuality": 4,
+  "notes": "Tie with control on tokens. SQLite is a single-file amalgamation — Symapse can't save tokens when there's only one file to read. C parser is minimal (extensions only, no syntax parsing). Both agents had to grep for WAL functions at different offsets."
+}

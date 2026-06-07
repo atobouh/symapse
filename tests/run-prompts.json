@@ -1,0 +1,30 @@
+{
+  "repos": {
+    "fastapi-master": {
+      "path": "C:/Users/COMPUTER CITY/Desktop/test/fastapi-master",
+      "language": "Python",
+      "prompt": "How would you add rate limiting to the FastAPI dependency injection system? Use symapse tools. Give me a plan, no implementation.",
+      "control": "How would you add rate limiting to the FastAPI dependency injection system? Do not use symapse tools. Give me a plan, no implementation."
+    },
+    "fzf-master": {
+      "path": "C:/Users/COMPUTER CITY/Desktop/test/fzf-master",
+      "language": "Go",
+      "prompt": "How would you add a preview window toggle to the fuzzy finder? Use symapse tools. Give me a plan, no implementation.",
+      "control": "How would you add a preview window toggle to the fuzzy finder? Do not use symapse tools. Give me a plan, no implementation."
+    },
+    "react-main": {
+      "path": "C:/Users/COMPUTER CITY/Desktop/test/react-main",
+      "language": "JavaScript",
+      "prompt": "How would you add a new hook called useDebounce to React? Use symapse tools. Give me a plan, no implementation.",
+      "control": "How would you add a new hook called useDebounce to React? Do not use symapse tools. Give me a plan, no implementation."
+    },
+    "sqlite-amalgamation-master": {
+      "path": "C:/Users/COMPUTER CITY/Desktop/test/sqlite-amalgamation-master",
+      "language": "C",
+      "prompt": "How would you add a WAL checkpoint throttle to SQLite? Use symapse tools. Give me a plan, no implementation.",
+      "control": "How would you add a WAL checkpoint throttle to SQLite? Do not use symapse tools. Give me a plan, no implementation."
+    }
+  },
+  "instructions": "For each repo, run the Symapse prompt in a new opencode tab, then the control prompt in another tab. Record tokens used (from the opencode UI), plan quality (1-5), and any notes.",
+  "reportTarget": "tests/results/report.md"
+}

@@ -1,0 +1,8 @@
+{
+  "case": "kong-symapse",
+  "prompt": "I want to block people from certain countries from using my API, like a geo-blocking thing.",
+  "tokens": 31000,
+  "timeSeconds": 139,
+  "planQuality": 4,
+  "notes": "SYMAPSE LOSS (31k vs 29k). Context returned wasm_filters not ip-restriction. Agent went down Rust/WASM path before recovering via sub-agent. Lua parser likely missing function extraction. Architecture tool unhelpful for plugin development."
+}

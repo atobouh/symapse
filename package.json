@@ -1,0 +1,44 @@
+{
+  "name": "symapse",
+  "version": "2.0.1",
+  "description": "Architectural awareness engine for AI coding agents — deterministic call graph, impact analysis, dead code detection, semantic overlap, and more",
+  "type": "module",
+  "packageManager": "pnpm@9.0.0",
+  "bin": {
+    "symapse": "apps/cli/src/index.js"
+  },
+  "files": [
+    "packages/engine/src/index.js",
+    "packages/db/src/store.js",
+    "packages/mcp/src/index.js",
+    "apps/cli/src/index.js",
+    "apps/api/src/index.js",
+    "apps/web/",
+    "scripts/",
+    "opencode.json"
+  ],
+  "keywords": [
+    "ai",
+    "code-analysis",
+    "call-graph",
+    "dead-code",
+    "impact-analysis",
+    "mcp",
+    "coding-agent",
+    "architecture"
+  ],
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anomalyco/symapse"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "serve": "node apps/api/src/index.js",
+    "index": "node apps/cli/src/index.js index",
+    "test": "node --test packages/engine/tests/"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "case": "django-control",
+  "prompt": "my site is getting slow when a lot of people are online at the same time, how can i make it handle more visitors? do not use symapse tools",
+  "tokens": 310000,
+  "timeSeconds": 540,
+  "planQuality": 5,
+  "notes": "Extremely thorough. 124 toolcalls, read every middleware file, cache backend, DB handler, and session store. Gave priority-ordered plan with exact settings, exact line numbers, and infrastructure config."
+}

@@ -1,0 +1,6 @@
+{
+  "repo": "prettier-main", "language": "JavaScript", "files": 5673,
+  "symapseRun": { "tokens": 49000, "timeSeconds": 61, "planQuality": 4 },
+  "controlRun": { "tokens": 90000, "timeSeconds": 189, "planQuality": 5 },
+  "comparison": { "tokenReduction": "46%", "accuracyDelta": "minus 1 quality point" }
+}

@@ -1,0 +1,24 @@
+{
+  "repo": "sqlite-amalgamation-master",
+  "language": "C",
+  "files": 4,
+  "symbols": 0,
+  "edges": 0,
+  "symapseRun": {
+    "tokens": 44000,
+    "timeSeconds": 115,
+    "filesReadByAgent": 5,
+    "planQuality": 4,
+    "notes": "Symapse provides no advantage on single-file repos. C parser doesn't understand C syntax — agent had to grep everything."
+  },
+  "controlRun": {
+    "tokens": 44000,
+    "timeSeconds": 125,
+    "filesRead": 12,
+    "planQuality": 5
+  },
+  "comparison": {
+    "tokenReduction": "0%",
+    "accuracyDelta": "tie — Symapse provides zero advantage on single-file repos with weak language parser"
+  }
+}

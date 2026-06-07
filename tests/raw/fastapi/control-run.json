@@ -1,0 +1,10 @@
+{
+  "case": "fastapi-control",
+  "prompt": "How would you add rate limiting to the FastAPI dependency injection system? Do not Use symapse tools. Plan only, no implementation.",
+  "tokens": 70000,
+  "timeSeconds": 220,
+  "toolCalls": 40,
+  "explorationTime": "2m35s",
+  "fullThinking": "The user wants me to plan rate limiting for FastAPI DI. Let me explore the actual codebase structure. Task Explore FastAPI DI structure - 40 toolcalls, 2m35s. Read: dependencies/utils.py at multiple offsets, params.py at 740+, routing.py at 380-457, dependencies/models.py, applications.py middleware. Identified exact line numbers: analyze_param at 488, solve_dependencies at 598, get_request_handler at 382, add_non_field_param at 362, Depends at 746. Three approaches with exact file/line references.",
+  "outcome": "Three approaches with precise line numbers. A: Depends-style (raise HTTPException 429), B: Special type (auto-inject RateLimitInfo), C: Pre-DI route hook in get_request_handler. Recommended Approach C for route-level + A for per-dependency. Plan quality 5/5."
+}

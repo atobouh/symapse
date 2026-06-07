@@ -1,0 +1,8 @@
+{
+  "case": "kong-control",
+  "prompt": "I want to block people from certain countries from using my API, like a geo-blocking thing. do not use symapse tools.",
+  "tokens": 29000,
+  "timeSeconds": 98,
+  "planQuality": 5,
+  "notes": "Straight to ip-restriction as template. Read handler + schema, proposed matching geo-blocking plugin. Efficient — 2x fewer tokens than Symapse."
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@symapse/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/index.js",
+    "build": "echo \"build not implemented yet\"",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"no lint setup yet\""
+  }
+}

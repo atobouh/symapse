@@ -1,0 +1,8 @@
+{
+  "case": "ruff-symapse",
+  "prompt": "this linter tool keeps complaining about stuff my team doesn't agree with, can I turn off some of those annoying checks?",
+  "tokens": 58000,
+  "timeSeconds": 118,
+  "planQuality": 4,
+  "notes": "SYMAPSE LOSS (58k vs 19k, 3x). Clarify timed out. Intent detection sent agent to Rust source (options.rs, rule_table.rs) instead of pyproject.toml + docs. Agent traced internal compile pipeline — 100% irrelevant to user asking about configuration. Vibe coder prompt exposed config vs internals mismatch."
+}

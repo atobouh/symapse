@@ -1,0 +1,8 @@
+{
+  "repo": "kong-master",
+  "language": "Lua",
+  "files": 1309,
+  "symapseRun": { "tokens": 58000, "timeSeconds": 69, "planQuality": 4, "notes": "Lua parser works (3915 functions). Found ip-restriction, read 8 files. Extra tokens on bot-detection + PDK IP exploration that control skipped." },
+  "controlRun": { "tokens": 46000, "timeSeconds": 81, "planQuality": 5, "notes": "More focused. Found ip-restriction directly, read 7 files. More concise plan." },
+  "comparison": { "tokenReduction": "-26%", "accuracyDelta": "Lua parser fix works but call graph still weak — call detection on colon-method syntax is minimal" }
+}

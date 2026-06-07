@@ -1,0 +1,8 @@
+{
+  "case": "ruff-control",
+  "prompt": "this linter tool keeps complaining about stuff my team doesn't agree with, can I turn off some of those annoying checks? do not use symapse tools.",
+  "tokens": 19000,
+  "timeSeconds": 28,
+  "planQuality": 5,
+  "notes": "Read pyproject.toml + docs/configuration.md. Gave 4-level plan (global, per-file, inline, file-level). 28 seconds, 19k tokens. Perfect."
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@symapse/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"shared dev not implemented yet\"",
+    "build": "echo \"shared build not implemented yet\"",
+    "test": "echo \"no tests yet\"",
+    "lint": "echo \"no lint setup yet\""
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "case": "sqlite-control",
+  "prompt": "How would you add a WAL checkpoint throttle to SQLite? Do not use symapse tools. Plan only.",
+  "tokens": 44000,
+  "timeSeconds": 125,
+  "toolCalls": 42,
+  "filesRead": 12,
+  "planQuality": 5,
+  "notes": "Read the amalgamation at 12 different offsets. More precise line numbers. Better structure documentation. Both agents arrived at similar quality plans."
+}

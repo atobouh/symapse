@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Symapse // Terminal</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="terminal-shell" aria-label="Symapse terminal">
+      <header class="terminal-header">
+        <div class="brand-block">
+          <div class="brand">SYMAPSE</div>
+          <div class="subtitle">architectural terminal for repo investigation</div>
+        </div>
+        <div class="status-strip">
+          <div id="terminal-status" class="status-pill status-neutral">booting</div>
+          <div id="terminal-target" class="status-meta">target: loading...</div>
+        </div>
+      </header>
+
+      <section class="terminal-map-wrap" aria-label="Status map">
+        <pre id="terminal-map" class="terminal-map">loading...</pre>
+      </section>
+
+      <section id="terminal-output" class="terminal-output" aria-live="polite" aria-label="Action log"></section>
+
+      <form id="terminal-form" class="terminal-prompt" autocomplete="off">
+        <span class="prompt-label">symapse&gt;</span>
+        <input
+          id="terminal-input"
+          class="terminal-input"
+          type="text"
+          spellcheck="false"
+          autocomplete="off"
+          autocapitalize="off"
+          placeholder="help"
+        />
+        <button type="submit">run</button>
+      </form>
+
+      <footer class="terminal-footer">
+        commands: help | status | tree | changes | deadcode [limit] | impact &lt;name&gt; | target &lt;path&gt; | clear
+      </footer>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

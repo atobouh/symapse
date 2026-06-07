@@ -1,0 +1,47 @@
+{
+  "testSuite": "Symapse V2 Cross-Repo Benchmark",
+  "cases": {
+    "fastapi": {
+      "status": "complete",
+      "symapseTokens": 51000,
+      "controlTokens": 70000,
+      "reduction": "27%",
+      "qualitySymapse": 4,
+      "qualityControl": 5,
+      "rawPath": "tests/raw/fastapi/"
+    },
+    "fzf": {
+      "status": "complete",
+      "symapseTokens": 38000,
+      "controlTokens": 68000,
+      "reduction": "44%",
+      "qualitySymapse": 5,
+      "qualityControl": 5,
+      "rawPath": "tests/raw/fzf/"
+    },
+    "react": {
+      "status": "complete",
+      "symapseTokens": 40000,
+      "controlTokens": 80000,
+      "reduction": "50%",
+      "qualitySymapse": 4,
+      "qualityControl": 5,
+      "rawPath": "tests/raw/react/"
+    },
+    "sqlite": {
+      "status": "complete",
+      "symapseTokens": 44000,
+      "controlTokens": 44000,
+      "reduction": "0%",
+      "qualitySymapse": 4,
+      "qualityControl": 5,
+      "rawPath": "tests/raw/sqlite/"
+    }
+  },
+  "runningIssues": [
+    "overlap times out on repos >500 files (O(n²))",
+    "conventions/deadcode unavailable in old MCP sessions (need refresh)",
+    "context has 40% noise rate on first test",
+    "27% reduction below 50-70% target"
+  ]
+}
