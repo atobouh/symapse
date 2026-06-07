@@ -295,8 +295,9 @@ export async function storeKnowledge(repoRoot, type, key, value, sessionId) {
   await ensureStateDir(repoRoot);
   const db = openDatabase(repoRoot);
   try {
-    db.exec("CREATE TABLE IF NOT EXISTS codebase_knowledge (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, session_id TEXT, timestamp TEXT DEFAULT (datetime('now')))");
-    db.prepare("INSERT INTO codebase_knowledge (type, key, value, session_id) VALUES (?, ?, ?, ?)").run(type, key, value, sessionId || "");
+    db.exec("CREATE TABLE IF NOT EXISTS codebase_knowledge (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, session_id TEXT, confidence REAL DEFAULT 1.0, timestamp TEXT DEFAULT (datetime('now')))");
+    try { db.exec("ALTER TABLE codebase_knowledge ADD COLUMN confidence REAL DEFAULT 1.0"); } catch {}
+    db.prepare("INSERT INTO codebase_knowledge (type, key, value, session_id, confidence) VALUES (?, ?, ?, ?, 1.0)").run(type, key, value, sessionId || "");
   } finally { db.close(); }
 }
 
@@ -304,10 +305,40 @@ export async function queryKnowledge(repoRoot, type) {
   await ensureStateDir(repoRoot);
   const db = openDatabase(repoRoot);
   try {
-    db.exec("CREATE TABLE IF NOT EXISTS codebase_knowledge (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, session_id TEXT, timestamp TEXT DEFAULT (datetime('now')))");
+    db.exec("CREATE TABLE IF NOT EXISTS codebase_knowledge (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, session_id TEXT, confidence REAL DEFAULT 1.0, timestamp TEXT DEFAULT (datetime('now')))");
     const rows = type
-      ? db.prepare("SELECT * FROM codebase_knowledge WHERE type = ? ORDER BY timestamp DESC LIMIT 20").all(type)
-      : db.prepare("SELECT * FROM codebase_knowledge ORDER BY timestamp DESC LIMIT 50").all();
+      ? db.prepare("SELECT * FROM codebase_knowledge WHERE type = ? AND confidence >= 0.4 ORDER BY timestamp DESC LIMIT 20").all(type)
+      : db.prepare("SELECT * FROM codebase_knowledge WHERE confidence >= 0.4 ORDER BY timestamp DESC LIMIT 50").all();
     return rows;
+  } finally { db.close(); }
+}
+
+export async function validateKnowledge(repoRoot, activeSymbols, activeFiles) {
+  await ensureStateDir(repoRoot);
+  const db = openDatabase(repoRoot);
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS codebase_knowledge (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, session_id TEXT, confidence REAL DEFAULT 1.0, timestamp TEXT DEFAULT (datetime('now')))");
+    const all = db.prepare("SELECT id, key, type, confidence FROM codebase_knowledge WHERE confidence >= 0.15").all();
+    const degrade = db.prepare("UPDATE codebase_knowledge SET confidence = ? WHERE id = ?");
+    const purge = db.prepare("DELETE FROM codebase_knowledge WHERE id = ?");
+    const symSet = new Set(activeSymbols || []);
+    const fileSet = new Set(activeFiles || []);
+
+    for (const entry of all) {
+      const parts = entry.key.split(" → ");
+      let exists = false;
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (symSet.has(trimmed) || fileSet.has(trimmed) || [...symSet].some(s => s.includes(trimmed))) {
+          exists = true;
+          break;
+        }
+      }
+      if (!exists) {
+        const newConf = entry.confidence - 0.3;
+        if (newConf < 0.1) purge.run(entry.id);
+        else degrade.run(newConf, entry.id);
+      }
+    }
   } finally { db.close(); }
 }

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readIndexState, writeIndexState, ensureSessionSchema, writeSessionSignal, querySessionSignals as dbQuerySessionSignals, storeKnowledge as dbStoreKnowledge, queryKnowledge as dbQueryKnowledge } from "../../db/src/store.js";
+import { readIndexState, writeIndexState, ensureSessionSchema, writeSessionSignal, querySessionSignals as dbQuerySessionSignals, storeKnowledge as dbStoreKnowledge, queryKnowledge as dbQueryKnowledge, validateKnowledge as dbValidateKnowledge } from "../../db/src/store.js";
 
 const ENGINE_VERSION = 14;
 const LOG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../.symapse/symapse_log.jsonl");
@@ -617,6 +617,11 @@ export async function indexRepository(targetPath, options = {}) {
   const state = { ...currentState, engineVersion: ENGINE_VERSION, files, changedFunctions, removedFunctions, summary: { ...currentState.summary, changedCount: changedFunctions.length, removedCount: removedFunctions.length, initialIndex: !previousState, incrementalParsed: changedCount, incrementalSkipped: unchangedCount } };
   for (const s of state.symbols) { s.body = ""; s.bodyHash = s.bodyHash || ""; }
   await writeIndexState(storageRoot, state);
+
+  const activeSymbols = (state.symbols || []).map(s => s.qualifiedName).filter(Boolean);
+  const activeFiles = (state.symbols || []).map(s => s.filePath).filter(Boolean);
+  dbValidateKnowledge(storageRoot, activeSymbols, activeFiles).catch(() => {});
+
   return state;
 }
 

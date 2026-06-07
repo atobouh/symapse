@@ -8,7 +8,20 @@
   <img alt="node" src="https://img.shields.io/node/v/symapse">
 </p>
 
-**[View Benchmarks →](docs/benchmarks.html)**
+## Benchmarks
+
+Same prompt, same codebase. One agent uses Symapse, one reads files directly.
+
+| Repo | Language | Symapse | Control | Reduction |
+|---|---|---|---|---|
+| Django | Python | 57k | 310k | **−81%** |
+| React | JavaScript | 40k | 80k | **−50%** |
+| Prettier | JavaScript | 49k | 90k | **−46%** |
+| Fzf | Go | 38k | 68k | **−44%** |
+| FastAPI | Python | 51k | 70k | **−27%** |
+| SQLite | C | 44k | 44k | 0% |
+
+**Average: 50% token reduction.** Plan quality: consistently 4/5 vs 5/5. Interactive version: [`docs/benchmarks.html`](docs/benchmarks.html)
 
 ---
 
