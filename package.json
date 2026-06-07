@@ -1,6 +1,6 @@
 {
   "name": "symapse",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Architectural awareness engine for AI coding agents — deterministic call graph, impact analysis, dead code detection, semantic overlap, and more",
   "type": "module",
   "packageManager": "pnpm@9.0.0",
