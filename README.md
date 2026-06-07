@@ -8,7 +8,7 @@
   <img alt="node" src="https://img.shields.io/node/v/symapse">
 </p>
 
-Symapse indexes a codebase, builds a deterministic call graph, and gives AI agents instant answers that would normally require dozens of file reads. **50% average token reduction** measured across 8 real-world codebases.
+**[View Benchmarks →](docs/benchmarks.html)**
 
 ---
 
