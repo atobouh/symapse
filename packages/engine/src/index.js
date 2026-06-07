@@ -685,15 +685,43 @@ function filterSymbols(state, query) {
   if (!query) return syms;
   const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length >= 2);
   if (!tokens.length) return [];
-  return syms.filter(s => {
-    const fields = [s.name?.toLowerCase(), s.qualifiedName?.toLowerCase(), s.filePath?.toLowerCase(), s.kind?.toLowerCase()];
-    for (const t of tokens) {
-      for (const f of fields) {
-        if (f?.includes(t)) return true;
-      }
-    }
+
+  function match(fields) {
+    for (const t of tokens) for (const f of fields) if (f?.includes(t)) return true;
     return false;
-  });
+  }
+
+  let results = syms.filter(s => match([s.name?.toLowerCase(), s.qualifiedName?.toLowerCase(), s.filePath?.toLowerCase(), s.kind?.toLowerCase()]));
+
+  if (results.length === 0 && tokens.length >= 2) {
+    const flattened = query.toLowerCase().replace(/[^a-z0-9]/g, "");
+    results = syms.filter(s => {
+      const fields = [s.name?.toLowerCase(), s.qualifiedName?.toLowerCase(), s.filePath?.toLowerCase()];
+      return fields.some(f => f?.includes(flattened) || (f && flattened.includes(f)));
+    });
+  }
+
+  if (results.length === 0) {
+    results = syms.filter(s => match([(s.filePath || "").toLowerCase()]));
+  }
+
+  if (results.length >= 3) {
+    const seen = new Map();
+    results = results.filter(s => {
+      const bh = s.bodyHash || s.endLine || "";
+      const prev = seen.get(bh);
+      if (prev) {
+        const prevIsStale = /\b(?:archive|backup|old|deprecated|\.bak)\b/i.test(prev.filePath);
+        const thisIsStale = /\b(?:archive|backup|old|deprecated|\.bak)\b/i.test(s.filePath);
+        if (prevIsStale && !thisIsStale) { seen.set(bh, s); return true; }
+        if (!prevIsStale && thisIsStale) return false;
+      }
+      seen.set(bh, s);
+      return true;
+    });
+  }
+
+  return results;
 }
 export async function listFunctions(repoRoot, query = "") { const s = await ensureState(repoRoot); return filterSymbols(s, query).map(stripBody); }
 export async function getFunctionMatches(repoRoot, name) { const s = await ensureState(repoRoot); return filterSymbols(s, name); }
