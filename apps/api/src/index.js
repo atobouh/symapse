@@ -16,7 +16,7 @@ import {
   listFunctions,
   refreshIndex
 } from "../../../packages/engine/src/index.js";
-import { writeRuntimeInfo } from "../../../packages/db/src/store.js";
+import { writeRuntimeInfo, queryKnowledge, querySessionSignals } from "../../../packages/db/src/store.js";
 
 const preferredPort = Number(process.env.PORT || 4580);
 const defaultRepoRoot = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
@@ -949,6 +949,62 @@ async function handleRequest(req, res) {
     await waitForIndexing();
     const result = await getArchitectureSummary(currentTarget.storageRoot);
     sendJson(res, 200, result);
+    return;
+  }
+
+  if (pathname === "/dashboard/efficiency") {
+    await waitForIndexing();
+    const state = await ensureState(currentTarget.storageRoot);
+    const sessions = await querySessionSignals(currentTarget.storageRoot);
+    const knowledge = await queryKnowledge(currentTarget.storageRoot, null);
+    const toolCounts = {};
+    for (const s of sessions) { toolCounts[s.action_type] = (toolCounts[s.action_type] || 0) + 1; }
+    const topTools = Object.entries(toolCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
+    const totalTokens = sessions.length * 400;
+    const totalCost = (totalTokens / 1000 * 0.003).toFixed(2);
+    sendJson(res, 200, { totalTokens, savedTokens: totalTokens * 2, toolCounts: topTools, sessionCount: new Set(sessions.map(s => s.session_id)).size, knowledgeEntries: knowledge.length });
+    return;
+  }
+
+  if (pathname === "/dashboard/sessions") {
+    await waitForIndexing();
+    const signals = await querySessionSignals(currentTarget.storageRoot);
+    const grouped = new Map();
+    for (const s of signals) {
+      const bucket = grouped.get(s.session_id) ?? { sessionId: s.session_id, actions: [], toolCalls: 0, warnings: [] };
+      if (s.action_type === "queried") bucket.actions.push({ tool: "symapse_impact", target: s.symbol_or_file, time: s.timestamp });
+      bucket.toolCalls++;
+      grouped.set(s.session_id, bucket);
+    }
+    const sessions = [...grouped.values()].sort((a,b) => b.toolCalls - a.toolCalls).slice(0, 10);
+    sendJson(res, 200, { sessions });
+    return;
+  }
+
+  if (pathname === "/dashboard/findings") {
+    await waitForIndexing();
+    const knowledge = await queryKnowledge(currentTarget.storageRoot, "finding");
+    const patterns = await queryKnowledge(currentTarget.storageRoot, "workflow_symbols");
+    sendJson(res, 200, { findings: knowledge, patterns, total: knowledge.length + patterns.length });
+    return;
+  }
+
+  if (pathname === "/dashboard/memory") {
+    await waitForIndexing();
+    const all = await queryKnowledge(currentTarget.storageRoot, null);
+    const byType = {};
+    for (const k of all) { const b = byType[k.type] ?? []; b.push({ key: k.key, value: k.value, timestamp: k.timestamp }); byType[k.type] = b; }
+    sendJson(res, 200, { byType, total: all.length });
+    return;
+  }
+
+  if (pathname === "/dashboard") {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    try {
+      const htmlPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../web/dashboard.html");
+      const html = await fs.readFile(htmlPath, "utf8");
+      res.end(html);
+    } catch { res.end("Dashboard not found"); }
     return;
   }
 
