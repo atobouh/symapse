@@ -19,6 +19,27 @@ import {
   recordSessionQuery,
   refreshIndex
 } from "../../engine/src/index.js";
+import { promises as fs } from "node:fs";
+import { homedir } from "node:os";
+
+async function registerWorkspace(repoPath) {
+  try {
+    const wsDir = path.join(homedir(), ".symapse");
+    await fs.mkdir(wsDir, { recursive: true });
+    const wsFile = path.join(wsDir, "workspaces.json");
+    let data = { workspaces: [] };
+    try { data = JSON.parse(await fs.readFile(wsFile, "utf8")); } catch {}
+    if (!data.workspaces.find(w => w.path === repoPath)) {
+      data.workspaces.push({ path: repoPath, lastUsed: new Date().toISOString() });
+    } else {
+      data.workspaces.find(w => w.path === repoPath).lastUsed = new Date().toISOString();
+    }
+    await fs.writeFile(wsFile, JSON.stringify(data, null, 2));
+  } catch {}
+}
+
+// Register this repo on MCP startup
+registerWorkspace(repoRoot);
 
 const repoRoot = path.resolve(process.env.SYMAPSE_REPO_ROOT || process.argv[2] || fileURLToPath(new URL("../../../", import.meta.url)));
 let state = null;

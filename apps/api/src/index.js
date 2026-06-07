@@ -16,7 +16,8 @@ import {
   listFunctions,
   refreshIndex
 } from "../../../packages/engine/src/index.js";
-import { writeRuntimeInfo } from "../../../packages/db/src/store.js";
+import { writeRuntimeInfo, queryKnowledge, querySessionSignals } from "../../../packages/db/src/store.js";
+import { homedir } from "node:os";
 
 const preferredPort = Number(process.env.PORT || 4580);
 const defaultRepoRoot = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
@@ -952,6 +953,88 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (pathname === "/workspaces") {
+    const wsDir = path.join(homedir(), ".symapse");
+    await fs.mkdir(wsDir, { recursive: true }).catch(()=>{});
+    const wsFile = path.join(wsDir, "workspaces.json");
+    try { const raw = await fs.readFile(wsFile, "utf8"); sendJson(res, 200, JSON.parse(raw)); }
+    catch { sendJson(res, 200, { workspaces: [] }); }
+    return;
+  }
+
+  if (pathname === "/workspaces/register") {
+    const wsDir = path.join(homedir(), ".symapse");
+    await fs.mkdir(wsDir, { recursive: true }).catch(()=>{});
+    const wsFile = path.join(wsDir, "workspaces.json");
+    let data = { workspaces: [] };
+    try { data = JSON.parse(await fs.readFile(wsFile, "utf8")); } catch {}
+    const repo = currentTarget.path;
+    if (!data.workspaces.find(w => w.path === repo)) {
+      data.workspaces.push({ path: repo, lastUsed: new Date().toISOString() });
+    } else {
+      data.workspaces.find(w => w.path === repo).lastUsed = new Date().toISOString();
+    }
+    await fs.writeFile(wsFile, JSON.stringify(data, null, 2));
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (pathname === "/dashboard/efficiency") {
+    const repo = searchParams.get("repo") || currentTarget.path;
+    await waitForIndexing();
+    const signals = await querySessionSignals(repo);
+    const toolCounts = {};
+    for (const s of signals) { toolCounts[s.action_type] = (toolCounts[s.action_type] || 0) + 1; }
+    const topTools = Object.entries(toolCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
+    const totalTokens = signals.length * 400;
+    const sessionCount = new Set(signals.map(s => s.session_id)).size;
+    sendJson(res, 200, { totalTokens, savedTokens: totalTokens * 2, toolCounts: topTools, sessionCount, costSaved: (totalTokens * 2 / 1000 * 0.003).toFixed(2) });
+    return;
+  }
+
+  if (pathname === "/dashboard/sessions") {
+    const repo = searchParams.get("repo") || currentTarget.path;
+    await waitForIndexing();
+    const signals = await querySessionSignals(repo);
+    const grouped = new Map();
+    for (const s of signals) {
+      const bucket = grouped.get(s.session_id) ?? { sessionId: s.session_id, actions: [], toolCalls: 0 };
+      if (s.action_type === "queried") bucket.actions.push({ tool: "symapse_impact", target: s.symbol_or_file, time: s.timestamp });
+      bucket.toolCalls++;
+      grouped.set(s.session_id, bucket);
+    }
+    sendJson(res, 200, { sessions: [...grouped.values()].sort((a,b) => new Date(b.actions[0]?.time||0) - new Date(a.actions[0]?.time||0)).slice(0, 20) });
+    return;
+  }
+
+  if (pathname === "/dashboard/findings") {
+    const repo = searchParams.get("repo") || currentTarget.path;
+    await waitForIndexing();
+    const knowledge = await queryKnowledge(repo, "finding");
+    const patterns = await queryKnowledge(repo, "workflow_symbols");
+    sendJson(res, 200, { findings: knowledge, patterns, total: knowledge.length + patterns.length });
+    return;
+  }
+
+  if (pathname === "/dashboard/memory") {
+    const repo = searchParams.get("repo") || currentTarget.path;
+    await waitForIndexing();
+    const all = await queryKnowledge(repo, null);
+    const byType = {};
+    for (const k of all) { const b = byType[k.type] ?? []; b.push({ key: k.key, value: k.value, timestamp: k.timestamp }); byType[k.type] = b; }
+    sendJson(res, 200, { byType, total: all.length });
+    return;
+  }
+
+  if (pathname === "/dashboard") {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    try {
+      const htmlPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../web/dashboard.html");
+      res.end(await fs.readFile(htmlPath, "utf8"));
+    } catch { res.end("Dashboard not found"); }
+    return;
+  }
+
   if (pathname === "/command" && req.method === "POST") {
     const body = await readJsonBody(req);
     const result = await executeCommand(body.command || "", {
@@ -1041,8 +1124,9 @@ async function listenWithFallback(server, startPort, attempts = 20) {
         };
 
         server.once("error", onError);
-        server.listen(port, () => {
+        server.listen(port, async () => {
           server.off("error", onError);
+          await fetch("http://localhost:" + port + "/workspaces/register").catch(()=>{});
           resolve();
         });
       });
