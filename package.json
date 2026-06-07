@@ -30,7 +30,7 @@
   "license": "AGPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/anomalyco/symapse"
+    "url": "https://github.com/atobouh/symapse"
   },
   "engines": {
     "node": ">=22"
