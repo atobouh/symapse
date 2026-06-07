@@ -21,7 +21,9 @@ Same prompt, same codebase. One agent uses Symapse, one reads files directly.
 | FastAPI | Python | 51k | 70k | **−27%** |
 | SQLite | C | 44k | 44k | 0% |
 
-**Average: 50% token reduction.** Plan quality: consistently 4/5 vs 5/5. Interactive version: [`docs/benchmarks.html`](docs/benchmarks.html)
+**Average: 50% token reduction.** Plan quality: consistently 4/5 vs 5/5.
+
+<p align="center"><img src="docs/benchmarks.png" alt="Symapse Benchmarks" width="720"></p>
 
 ---
 
