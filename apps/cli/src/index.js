@@ -35,8 +35,7 @@ function printHelp() {
   console.log("Symapse CLI");
   console.log("");
   console.log("Commands:");
-      console.log("  mcp [repo]       Start MCP server for the given repo");
-      console.log("  dashboard [repo] Start web dashboard");
+  console.log("  mcp [repo]       Start MCP server for the given repo");
   console.log("  index [repo]     Index the repository");
   console.log("  clarify <desc>   Analyze request for ambiguity");
   console.log("  impact <name>    Show callers, callees, and impacted files");
@@ -54,15 +53,8 @@ function printHelp() {
 async function run() {
   if (command === "mcp") {
     const mcpTarget = target ? path.resolve(process.cwd(), target) : repoRoot;
+    const mcpPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../packages/mcp/src/index.js");
     const child = spawn("node", [fileURLToPath(new URL("../../../packages/mcp/src/index.js", import.meta.url))], { stdio: "inherit", env: { ...process.env, SYMAPSE_REPO_ROOT: mcpTarget } });
-    child.on("exit", (code) => process.exit(code || 0));
-    return;
-  }
-
-  if (command === "dashboard") {
-    const dashTarget = target ? path.resolve(process.cwd(), target) : repoRoot;
-    const apiPath = fileURLToPath(new URL("../../../apps/api/src/index.js", import.meta.url));
-    const child = spawn("node", [apiPath], { stdio: "inherit", env: { ...process.env, SYMAPSE_REPO_ROOT: dashTarget } });
     child.on("exit", (code) => process.exit(code || 0));
     return;
   }
