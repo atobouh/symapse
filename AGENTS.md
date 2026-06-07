@@ -1,9 +1,5 @@
 # AGENTS.md
 
-## DO NOT READ FILES. USE SYMAPSE TOOLS INSTEAD.
-
-Symapse is an architectural awareness MCP server. It indexes the codebase and gives you instant answers that would normally require dozens of file reads. Using Symapse tools cuts token usage by 70-80%.
-
 ## RULE 1: First action in every session — symapse_clarify
 
 Before ANYTHING else — before reading files, before answering, before coding:
@@ -14,7 +10,9 @@ symapse_clarify "<the user's request>"
 
 If it returns questions, STOP and ASK the user those questions. Do not guess. Do not proceed until ambiguity is resolved.
 
-## RULE 2: Never read files for architecture questions
+## RULE 2: Always check Symapse before reading files
+
+Symapse is an architectural awareness MCP server. It indexes the codebase and gives you instant answers that would normally require dozens of file reads. Using Symapse tools cuts token usage by 70-80%.
 
 | Instead of... | Use... |
 |---|---|
@@ -28,6 +26,8 @@ If it returns questions, STOP and ASK the user those questions. Do not guess. Do
 | Checking what changed | `symapse_changes` |
 | After editing | `symapse_refresh` |
 
+If Symapse doesn't answer your question, read files. But check Symapse first.
+
 ## RULE 3: Verify before and after changes
 
 - **Before modifying a function**: `symapse_impact <name>`
@@ -35,8 +35,6 @@ If it returns questions, STOP and ASK the user those questions. Do not guess. Do
 - **After changes**: `symapse_refresh` + `symapse_deadcode`
 
 ## RULE 4: The context workflow — read the RIGHT files, not ALL files
-
-When planning or implementing a feature, follow this sequence:
 
 1. `symapse_clarify` — detect ambiguity, ask questions
 2. `symapse_architecture` — understand repo structure

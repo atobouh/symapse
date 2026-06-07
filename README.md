@@ -43,6 +43,11 @@ symapse context "direct login after payment"
 
 ## OpenCode Integration
 
+Install Symapse first:
+```bash
+npm install -g symapse
+```
+
 Add to your project's `opencode.json`:
 
 ```json
@@ -60,19 +65,23 @@ Add to your project's `opencode.json`:
 Create an `AGENTS.md` in your project root with:
 
 ```markdown
-## DO NOT READ FILES. USE SYMAPSE TOOLS INSTEAD.
+## RULE 1: First action — symapse_clarify
 
-First action every session: `symapse_clarify "<request>"`. If it returns questions, ASK them.
+Before ANYTHING else, call `symapse_clarify "<request>"`. If it returns questions, ASK them. Do not guess.
+
+## RULE 2: Always check Symapse before reading files
 
 | Instead of... | Use... |
 |---|---|
-| Reading files for architecture | `symapse_architecture` |
+| Reading files to understand repo | `symapse_architecture` |
 | Grepping for symbols | `symapse_search` |
 | Tracing callers | `symapse_impact` |
 | Guessing where code goes | `symapse_where` |
 | Checking for duplicates | `symapse_overlap` |
 | Finding dead code | `symapse_deadcode` |
 | Finding must-read files | `symapse_context` |
+
+If Symapse doesn't answer your question, read files. But check Symapse first.
 ```
 
 ---
