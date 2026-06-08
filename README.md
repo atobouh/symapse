@@ -28,11 +28,11 @@ symapse index /path/to/repo
 symapse mcp /path/to/repo
 
 # Query from the terminal
-symapse architecture
-symapse impact "login"
-symapse deadcode 10
-symapse where "add notification system"
-symapse context "direct login after payment"
+symapse_ask "add notification system"
+symapse_find login
+symapse_map "direct login after payment"
+symapse_audit 10
+symapse_health
 ```
 
 ---
