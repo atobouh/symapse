@@ -96,6 +96,32 @@ async function ensureIndex() {
 }
 
 const TOOLS = {
+  symapse_ask: {
+    name: "symapse_ask",
+    description: "Ask what you should know before working on a feature. Routes internally: classifies intent (config vs source vs understanding), clarifies ambiguity, finds where code should go, and surfaces coding conventions. Combines clarify + where + conventions.",
+    inputSchema: { type: "object", properties: { description: { type: "string", description: "Feature or task description" } }, required: ["description"] }
+  },
+  symapse_find: {
+    name: "symapse_find",
+    description: "Find a symbol and show what it touches. If given a function name, returns location + direct callers/callees + transitive dependencies + impacted files. If given a general query, returns search results. If no query, returns recent changes. Combines search + impact + changes.",
+    inputSchema: { type: "object", properties: { query: { type: "string", description: "Function name or search query (leave empty for recent changes)" } }, required: [] }
+  },
+  symapse_map: {
+    name: "symapse_map",
+    description: "Get the map you need. If given a feature description, returns must-read files ranked by relevance. If no description, returns architecture summary (domains, critical nodes, hubs, inter-module flows). Combines context + architecture + overlap.",
+    inputSchema: { type: "object", properties: { description: { type: "string", description: "Feature description (leave empty for architecture summary)" } }, required: [] }
+  },
+  symapse_audit: {
+    name: "symapse_audit",
+    description: "Audit the codebase. Returns dead code candidates, semantic overlaps (near-duplicate functions), and convention violations. Combines deadcode + overlap + conventions.",
+    inputSchema: { type: "object", properties: { limit: { type: "number", description: "Max results (default 10)" } }, required: [] }
+  },
+  symapse_health: {
+    name: "symapse_health",
+    description: "Index health. Returns file/symbol/edge counts, top files, index status. Use refresh flag to re-index. Combines status + refresh.",
+    inputSchema: { type: "object", properties: { refresh: { type: "boolean", description: "Force re-index (default false)" } }, required: [] }
+  },
+  // Deprecated — forwarded to new names
   symapse_search: {
     name: "symapse_search",
     description: "Search for symbols (functions, classes, methods) in the indexed codebase. Returns matching symbols with file paths and line numbers.",
@@ -269,6 +295,94 @@ async function handleToolsCall(params) {
   const args = params.arguments || {};
 
   switch (toolName) {
+    case "symapse_ask": {
+      await ensureIndex();
+      const result = await clarifyRequest(repoRoot, args.description || "");
+      const where = await findWhereToIntegrate(repoRoot, args.description || "", 2);
+      const conventions = await getConventions(repoRoot);
+      const prior = await queryKnowledge(repoRoot, null);
+      const knowledgeNote = prior.length > 0 ? prior.slice(0, 3).map(p => p.key + ": " + p.value).join("; ") : null;
+      return { content: [{ type: "text", text: JSON.stringify({
+        intent: result.intent, confidence: result.confidence,
+        questions: result.questions, ambiguousTerms: result.ambiguousTerms,
+        relatedSystems: result.relatedSystems?.filter(s => s.score >= 2).map(s => s.name) || [],
+        architecturalTargets: where.candidates?.map(c => ({ module: c.module, risk: c.risk, rationale: c.rationale })) || [],
+        conventions: (conventions.domains || []).slice(0, 3).map(d => ({ module: d.module, symbols: d.symbolCount, exportedCount: d.exportedCount })),
+        priorKnowledge: knowledgeNote
+      }, null, 2) }] };
+    }
+
+    case "symapse_find": {
+      await ensureIndex();
+      const query = args.query || "";
+      if (!query) {
+        const state = await ensureState(repoRoot);
+        return { content: [{ type: "text", text: JSON.stringify({ changed: state.changedFunctions?.length || 0, removed: state.removedFunctions?.length || 0 }, null, 2) }] };
+      }
+      const impact = await getImpact(repoRoot, query);
+      if (impact && impact.matchedFunctions?.length > 0) {
+        return { content: [{ type: "text", text: JSON.stringify({
+          symbol: query, location: impact.matchedFunctions[0].filePath + ":" + impact.matchedFunctions[0].startLine,
+          directCallers: impact.directCallers?.map(c => c.qualifiedName) || [],
+          directCallees: impact.directCallees?.map(c => c.qualifiedName) || [],
+          impactedFiles: impact.impactedFiles || [],
+          impactedSymbolCount: impact.impactedSymbols?.length || 0
+        }, null, 2) }] };
+      }
+      const results = await listFunctions(repoRoot, query);
+      return { content: [{ type: "text", text: JSON.stringify({ query, results: results.slice(0, 15).map(s => ({ name: s.qualifiedName, kind: s.kind, file: s.filePath, line: s.startLine })) }, null, 2) }] };
+    }
+
+    case "symapse_map": {
+      await ensureIndex();
+      const desc = args.description || "";
+      if (desc) {
+        const ctx = await getContextFiles(repoRoot, desc);
+        return { content: [{ type: "text", text: ctx.directive }] };
+      }
+      const arch = await getArchitectureSummary(repoRoot);
+      return { content: [{ type: "text", text: JSON.stringify({
+        domains: arch.domains?.map(d => ({ name: d.name, symbols: d.symbolCount, exported: d.exportedCount })),
+        critical: arch.criticalModules?.slice(0, 8)?.map(m => ({ name: m.name, fanIn: m.fanIn, fanOut: m.fanOut })),
+        hubs: arch.hubFunctions?.slice(0, 5)?.map(h => ({ name: h.name, module: h.module })),
+        flows: arch.interModuleFlows
+      }, null, 2) }] };
+    }
+
+    case "symapse_audit": {
+      await ensureIndex();
+      const limit = Number(args.limit || 10);
+      const dead = await getDeadCodeCandidates(repoRoot, limit);
+      return { content: [{ type: "text", text: JSON.stringify({
+        deadCode: dead.candidates?.map(c => ({ name: c.qualifiedName, score: c.score, reasons: c.reasons, file: c.filePath })) || [],
+        totalExamined: dead.totalSymbolsExamined
+      }, null, 2) }] };
+    }
+
+    case "symapse_health": {
+      await ensureIndex();
+      if (args.refresh) {
+        await refreshIndex(repoRoot);
+      }
+      const status = await getStatus(repoRoot);
+      return { content: [{ type: "text", text: JSON.stringify({
+        files: status.summary?.fileCount, symbols: status.summary?.symbolCount,
+        edges: status.summary?.edgeCount, topFiles: status.topFiles?.slice(0, 5)?.map(f => ({ file: f.filePath, count: f.count }))
+      }, null, 2) }] };
+    }
+
+    // Deprecated — forward to new names
+    case "symapse_clarify": case "symapse_where": case "symapse_conventions":
+      return handleToolsCall({ name: "symapse_ask", arguments: { description: args.description || args.query || "" } });
+    case "symapse_search": case "symapse_impact": case "symapse_changes":
+      return handleToolsCall({ name: "symapse_find", arguments: { query: args.query || args.name || "" } });
+    case "symapse_architecture": case "symapse_context": case "symapse_overlap":
+      return handleToolsCall({ name: "symapse_map", arguments: { description: args.description || args.query || "" } });
+    case "symapse_deadcode":
+      return handleToolsCall({ name: "symapse_audit", arguments: { limit: args.limit } });
+    case "symapse_refresh": case "symapse_status":
+      return handleToolsCall({ name: "symapse_health", arguments: { refresh: toolName === "symapse_refresh" } });
+
     case "symapse_search": {
       await ensureIndex();
       const results = await listFunctions(repoRoot, args.query || "");
