@@ -646,6 +646,66 @@ export async function queryKnowledge(repoRoot, type) {
   return dbQueryKnowledge(repoRoot, type);
 }
 
+export async function computeCanonicalityScores(repoRoot) {
+  const state = await ensureState(repoRoot);
+  const relations = state.relations ?? state.edges ?? [];
+  const symbols = state.symbols ?? state.functions ?? [];
+
+  if (relations.length === 0 || symbols.length === 0) return new Map();
+
+  const edgeCount = new Map();
+  for (const rel of relations) {
+    if (rel.kind !== "call" && rel.kind !== "import") continue;
+    if (rel.sourceFilePath) {
+      const s = edgeCount.get(rel.sourceFilePath) ?? { inbound: 0, outbound: 0 };
+      s.outbound++;
+      edgeCount.set(rel.sourceFilePath, s);
+    }
+    if (rel.targetFilePath) {
+      const t = edgeCount.get(rel.targetFilePath) ?? { inbound: 0, outbound: 0 };
+      t.inbound++;
+      edgeCount.set(rel.targetFilePath, t);
+    }
+  }
+
+  const bodyHashes = new Map();
+  for (const sym of symbols) {
+    if (!sym.bodyHash || sym.kind === "module") continue;
+    const bucket = bodyHashes.get(sym.bodyHash) ?? [];
+    bucket.push(sym.filePath);
+    bodyHashes.set(sym.bodyHash, bucket);
+  }
+
+  const maxEdges = Math.max(1, ...[...edgeCount.values()].flatMap(e => [e.inbound, e.outbound]));
+
+  const scores = new Map();
+  for (const [file, edges] of edgeCount) {
+    let score = (edges.inbound + edges.outbound) / Math.max(1, maxEdges / 10);
+    score = Math.min(1.0, Math.max(0.05, score));
+
+    const hash = symbols.find(s => s.filePath === file)?.bodyHash;
+    if (hash) {
+      const duplicates = bodyHashes.get(hash) || [];
+      if (duplicates.length > 1) {
+        const betterDuplicate = duplicates.some(dup => {
+          const edup = edgeCount.get(dup);
+          return dup !== file && edup && (edup.inbound + edup.outbound) > (edges.inbound + edges.outbound);
+        });
+        if (betterDuplicate) score *= 0.4;
+      }
+    }
+    scores.set(file, Math.round(score * 100) / 100);
+  }
+
+  for (const sym of symbols) {
+    if (!scores.has(sym.filePath)) {
+      scores.set(sym.filePath, 0.01);
+    }
+  }
+
+  return scores;
+}
+
 export async function detectAndStorePatterns(repoRoot, sessionId) {
   const signals = await dbQuerySessionSignals(repoRoot);
   if (!signals || signals.length < 3) return [];

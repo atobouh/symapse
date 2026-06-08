@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   clarifyRequest,
+  computeCanonicalityScores,
   detectAndStorePatterns,
   ensureState,
   findSemanticOverlaps,
@@ -315,34 +316,45 @@ async function handleToolsCall(params) {
     case "symapse_find": {
       await ensureIndex();
       const query = args.query || "";
+      const canonicality = await computeCanonicalityScores(repoRoot);
       if (!query) {
         const state = await ensureState(repoRoot);
         return { content: [{ type: "text", text: JSON.stringify({ changed: state.changedFunctions?.length || 0, removed: state.removedFunctions?.length || 0 }, null, 2) }] };
       }
       const impact = await getImpact(repoRoot, query);
       if (impact && impact.matchedFunctions?.length > 0) {
+        const rankedFiles = (impact.impactedFiles || []).sort((a,b) => (canonicality.get(b)||0) - (canonicality.get(a)||0));
         return { content: [{ type: "text", text: JSON.stringify({
           symbol: query, location: impact.matchedFunctions[0].filePath + ":" + impact.matchedFunctions[0].startLine,
           directCallers: impact.directCallers?.map(c => c.qualifiedName) || [],
           directCallees: impact.directCallees?.map(c => c.qualifiedName) || [],
-          impactedFiles: impact.impactedFiles || [],
-          impactedSymbolCount: impact.impactedSymbols?.length || 0
+          impactedFiles: rankedFiles.map(f => ({ file: f, confidence: canonicality.get(f) || 0 })),
+          impactfulSymbolCount: impact.impactedSymbols?.length || 0
         }, null, 2) }] };
       }
       const results = await listFunctions(repoRoot, query);
-      return { content: [{ type: "text", text: JSON.stringify({ query, results: results.slice(0, 15).map(s => ({ name: s.qualifiedName, kind: s.kind, file: s.filePath, line: s.startLine })) }, null, 2) }] };
+      const ranked = results.sort((a,b) => (canonicality.get(b.filePath)||0) - (canonicality.get(a.filePath)||0));
+      return { content: [{ type: "text", text: JSON.stringify({ query, results: ranked.slice(0, 15).map(s => ({ name: s.qualifiedName, kind: s.kind, file: s.filePath, line: s.startLine, canonicality: canonicality.get(s.filePath)||0 })) }, null, 2) }] };
     }
 
     case "symapse_map": {
       await ensureIndex();
       const desc = args.description || "";
+      const canonicality = await computeCanonicalityScores(repoRoot);
       if (desc) {
         const ctx = await getContextFiles(repoRoot, desc);
-        return { content: [{ type: "text", text: ctx.directive }] };
+        const where = await findWhereToIntegrate(repoRoot, desc, 2);
+        const scored = ctx.files.map(f => ({ ...f, canonicality: canonicality.get(f.file) || 0 }));
+        scored.sort((a,b) => b.canonicality - a.canonicality);
+        return { content: [{ type: "text", text: JSON.stringify({
+          contextFiles: scored.map(f => ({ file: f.file, score: f.relevanceScore, canonicality: f.canonicality, reasons: f.reasons })),
+          recommendedModule: where.candidates?.[0] ? { module: where.candidates[0].module, risk: where.candidates[0].risk, rationale: where.candidates[0].rationale } : null
+        }, null, 2) }] };
       }
       const arch = await getArchitectureSummary(repoRoot);
+      const domains = (arch.domains || []).map(d => ({ name: d.name, symbols: d.symbolCount, canonicality: (canonicality.get(d.topSymbols?.[0]?.filePath) || canonicity.get(d.name)) || 0 }));
       return { content: [{ type: "text", text: JSON.stringify({
-        domains: arch.domains?.map(d => ({ name: d.name, symbols: d.symbolCount, exported: d.exportedCount })),
+        domains: domains.sort((a,b) => b.canonicality - a.canonicality),
         critical: arch.criticalModules?.slice(0, 8)?.map(m => ({ name: m.name, fanIn: m.fanIn, fanOut: m.fanOut })),
         hubs: arch.hubFunctions?.slice(0, 5)?.map(h => ({ name: h.name, module: h.module })),
         flows: arch.interModuleFlows
@@ -353,9 +365,36 @@ async function handleToolsCall(params) {
       await ensureIndex();
       const limit = Number(args.limit || 10);
       const dead = await getDeadCodeCandidates(repoRoot, limit);
+      const canonicality = await computeCanonicalityScores(repoRoot);
+      const lowCanon = [...canonicality.entries()].filter(([_,s]) => s <= 0.1).sort((a,b) => a[1] - b[1]).slice(0, 8);
       return { content: [{ type: "text", text: JSON.stringify({
         deadCode: dead.candidates?.map(c => ({ name: c.qualifiedName, score: c.score, reasons: c.reasons, file: c.filePath })) || [],
-        totalExamined: dead.totalSymbolsExamined
+        totalExamined: dead.totalSymbolsExamined,
+        lowCanonicalityFiles: lowCanon.length > 0 ? lowCanon.map(([f,s]) => ({ file: f, score: s })) : [],
+        canonicalityDistribution: {
+          high: [...canonicality.values()].filter(v => v >= 0.5).length,
+          medium: [...canonicality.values()].filter(v => v >= 0.1 && v < 0.5).length,
+          low: [...canonicality.values()].filter(v => v < 0.1).length
+        }
+      }, null, 2) }] };
+    }
+
+    case "symapse_ask": {
+      await ensureIndex();
+      const result = await clarifyRequest(repoRoot, args.description || "");
+      const where = await findWhereToIntegrate(repoRoot, args.description || "", 2);
+      const conventions = await getConventions(repoRoot);
+      const prior = await queryKnowledge(repoRoot, null);
+      const canonicality = await computeCanonicalityScores(repoRoot);
+      const related = (result.relatedSystems || []).filter(s => (canonicality.get(s.file) || 0) >= 0.1);
+      const knowledgeNote = prior.length > 0 ? prior.slice(0, 3).map(p => p.key + ": " + p.value).join("; ") : null;
+      return { content: [{ type: "text", text: JSON.stringify({
+        intent: result.intent, confidence: result.confidence,
+        questions: result.questions, ambiguousTerms: result.ambiguousTerms,
+        relatedSystems: related.map(s => s.name),
+        architecturalTargets: where.candidates?.map(c => ({ module: c.module, risk: c.risk, rationale: c.rationale })) || [],
+        conventions: (conventions.domains || []).slice(0, 3).map(d => ({ module: d.module, symbols: d.symbolCount, exportedCount: d.exportedCount })),
+        priorKnowledge: knowledgeNote
       }, null, 2) }] };
     }
 
