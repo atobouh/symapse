@@ -8,14 +8,6 @@
   <img alt="node" src="https://img.shields.io/node/v/symapse">
 </p>
 
-## Benchmarks
-
-<p align="center"><img src="docs/benchmarks.png" alt="Symapse Benchmarks" width="720"></p>
-
-<p align="center"><img src="docs/benchmarks.png" alt="Symapse Benchmarks" width="720"></p>
-
----
-
 ## Install
 
 ```bash
