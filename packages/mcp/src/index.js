@@ -344,15 +344,26 @@ async function handleToolsCall(params) {
       if (desc) {
         const ctx = await getContextFiles(repoRoot, desc);
         const where = await findWhereToIntegrate(repoRoot, desc, 2);
+        const patterns = await queryKnowledge(repoRoot, "workflow_symbols");
+        const matchedPatterns = [];
+        for (const p of (patterns || [])) {
+          const tokens = desc.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(w => w.length >= 3);
+          const matchCount = tokens.filter(t => p.key.toLowerCase().includes(t)).length;
+          if (matchCount >= 1 && parseInt(p.value) >= 3) {
+            matchedPatterns.push({ pattern: p.key, sessions: p.value });
+          }
+        }
+
         const scored = ctx.files.map(f => ({ ...f, canonicality: canonicality.get(f.file) || 0 }));
         scored.sort((a,b) => b.canonicality - a.canonicality);
         return { content: [{ type: "text", text: JSON.stringify({
           contextFiles: scored.map(f => ({ file: f.file, score: f.relevanceScore, canonicality: f.canonicality, reasons: f.reasons })),
-          recommendedModule: where.candidates?.[0] ? { module: where.candidates[0].module, risk: where.candidates[0].risk, rationale: where.candidates[0].rationale } : null
+          recommendedModule: where.candidates?.[0] ? { module: where.candidates[0].module, risk: where.candidates[0].risk, rationale: where.candidates[0].rationale } : null,
+          workflowPatterns: matchedPatterns.length > 0 ? matchedPatterns.slice(0, 3) : null
         }, null, 2) }] };
       }
       const arch = await getArchitectureSummary(repoRoot);
-      const domains = (arch.domains || []).map(d => ({ name: d.name, symbols: d.symbolCount, canonicality: (canonicality.get(d.topSymbols?.[0]?.filePath) || canonicity.get(d.name)) || 0 }));
+      const domains = (arch.domains || []).map(d => ({ name: d.name, symbols: d.symbolCount, canonicality: (canonicality.get(d.topSymbols?.[0]?.filePath) || canonicality.get(d.name)) || 0 }));
       return { content: [{ type: "text", text: JSON.stringify({
         domains: domains.sort((a,b) => b.canonicality - a.canonicality),
         critical: arch.criticalModules?.slice(0, 8)?.map(m => ({ name: m.name, fanIn: m.fanIn, fanOut: m.fanOut })),
@@ -381,32 +392,57 @@ async function handleToolsCall(params) {
 
     case "symapse_ask": {
       await ensureIndex();
+      const desc = (args.description || "").toLowerCase();
       const result = await clarifyRequest(repoRoot, args.description || "");
       const where = await findWhereToIntegrate(repoRoot, args.description || "", 2);
       const conventions = await getConventions(repoRoot);
       const prior = await queryKnowledge(repoRoot, null);
       const canonicality = await computeCanonicalityScores(repoRoot);
-      const related = (result.relatedSystems || []).filter(s => (canonicality.get(s.file) || 0) >= 0.1);
-      const knowledgeNote = prior.length > 0 ? prior.slice(0, 3).map(p => p.key + ": " + p.value).join("; ") : null;
+
+      const state = await ensureState(repoRoot);
+      const symbols = state.symbols || [];
+      const terms = desc.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(w => w.length >= 3 && !/^the|and|for|that|this|with|from|have|will|what|when|your|how|can|use|want|make|need|like|just|should|would|could$/i.test(w));
+      const signals = [];
+      let resolved = [], gaps = [], blocking = [];
+
+      for (const term of terms) {
+        const matches = symbols.filter(s => s.name?.toLowerCase().includes(term) || s.qualifiedName?.toLowerCase().includes(term));
+        const highCanon = matches.filter(s => (canonicality.get(s.filePath) || 0) >= 0.3);
+        const weight = Math.min(1.0, highCanon.length * 0.25);
+
+        signals.push({ term, weight, foundIn: highCanon.slice(0, 3).map(s => s.qualifiedName) });
+
+        if (weight >= 0.5) {
+          resolved.push(term);
+        } else if (weight <= 0.2) {
+          gaps.push({ term, canonicality: weight, note: weight === 0 ? "no existing implementation" : "exists but low connectivity" });
+          blocking.push(term + ": " + (weight === 0 ? "no existing implementation found — which approach?" : "exists in low-connectivity files — reuse or build new?"));
+        }
+      }
+
+      const priorKnowledge = prior.length > 0 ? prior.slice(0, 3).map(p => p.key + ": " + p.value).join("; ") : null;
+
       return { content: [{ type: "text", text: JSON.stringify({
         intent: result.intent, confidence: result.confidence,
-        questions: result.questions, ambiguousTerms: result.ambiguousTerms,
-        relatedSystems: related.map(s => s.name),
+        signals, resolved, graphGaps: gaps, blockingQuestions: blocking.slice(0, 5),
+        questions: result.questions.slice(0, 3),
+        relatedSystems: result.relatedSystems?.filter(s => s.score >= 2).map(s => s.name) || [],
         architecturalTargets: where.candidates?.map(c => ({ module: c.module, risk: c.risk, rationale: c.rationale })) || [],
-        conventions: (conventions.domains || []).slice(0, 3).map(d => ({ module: d.module, symbols: d.symbolCount, exportedCount: d.exportedCount })),
-        priorKnowledge: knowledgeNote
+        conventions: (conventions.domains || []).slice(0, 3).map(d => ({ module: d.module, symbols: d.symbolCount })),
+        priorKnowledge
       }, null, 2) }] };
     }
 
     case "symapse_health": {
       await ensureIndex();
-      if (args.refresh) {
-        await refreshIndex(repoRoot);
-      }
+      if (args.refresh) { await refreshIndex(repoRoot); }
       const status = await getStatus(repoRoot);
+      const canonicality = await computeCanonicalityScores(repoRoot);
+      const topFiles = (status.topFiles || []).map(f => ({ file: f.filePath, count: f.count, canonicality: canonicality.get(f.filePath) || 0 }));
+      topFiles.sort((a,b) => b.canonicality - a.canonicality);
       return { content: [{ type: "text", text: JSON.stringify({
         files: status.summary?.fileCount, symbols: status.summary?.symbolCount,
-        edges: status.summary?.edgeCount, topFiles: status.topFiles?.slice(0, 5)?.map(f => ({ file: f.filePath, count: f.count }))
+        edges: status.summary?.edgeCount, topFiles: topFiles.slice(0, 5)
       }, null, 2) }] };
     }
 
@@ -420,280 +456,9 @@ async function handleToolsCall(params) {
     case "symapse_deadcode":
       return handleToolsCall({ name: "symapse_audit", arguments: { limit: args.limit } });
     case "symapse_refresh": case "symapse_status":
-      return handleToolsCall({ name: "symapse_health", arguments: { refresh: toolName === "symapse_refresh" } });
 
-    case "symapse_search": {
-      await ensureIndex();
-      const results = await listFunctions(repoRoot, args.query || "");
-      const compact = results.slice(0, 25).map((s) => ({
-        name: s.qualifiedName,
-        kind: s.kind,
-        file: s.filePath,
-        line: s.startLine,
-        exported: s.exported
-      }));
-      return {
-        content: [{ type: "text", text: JSON.stringify({ query: args.query, count: results.length, results: compact }, null, 2) }]
-      };
-    }
-
-    case "symapse_impact": {
-      await ensureIndex();
-      const impact = await getImpact(repoRoot, args.name || "");
-      if (impact) {
-        sessionQueries.push({ query: "impact:" + (args.name || ""), symbols: (impact.matchedSymbols || []).map(s => ({ name: s.name, filePath: s.filePath })) });
-        for (const s of (impact.matchedSymbols || [])) { logSessionSignal(repoRoot, sessionId, "queried", s.qualifiedName); }
-      }
-      if (!impact) {
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: "symbol_not_found", query: args.name }, null, 2) }]
-        };
-      }
-      const summary = {
-        functionName: impact.functionName,
-        matchedCount: impact.matchedSymbols?.length || 0,
-        directCallers: impact.directCallers?.map((c) => `${c.qualifiedName} (${c.filePath})`) || [],
-        directCallees: impact.directCallees?.map((c) => `${c.qualifiedName} (${c.filePath})`) || [],
-        impactedFiles: impact.impactedFiles || [],
-        impactedSymbolCount: impact.impactedSymbols?.length || 0,
-        transitiveCallersCount: impact.transitiveCallers?.length || 0,
-        transitiveCalleesCount: impact.transitiveCallees?.length || 0
-      };
-      return {
-        content: [{ type: "text", text: JSON.stringify(summary, null, 2) }]
-      };
-    }
-
-    case "symapse_deadcode": {
-      await ensureIndex();
-      const result = await getDeadCodeCandidates(repoRoot, args.limit || 30);
-      const compact = result.candidates.map((c) => ({
-        name: c.qualifiedName,
-        kind: c.kind,
-        file: c.filePath,
-        line: c.startLine,
-        score: c.score,
-        reasons: c.reasons
-      }));
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            totalExamined: result.totalSymbolsExamined,
-            totalCandidates: result.totalCandidates,
-            candidates: compact
-          }, null, 2)
-        }]
-      };
-    }
-
-    case "symapse_changes": {
-      await ensureIndex();
-      const s = await ensureState(repoRoot);
-      const changed = s.changedFunctions?.map((f) => ({
-        name: f.qualifiedName || f.name,
-        file: f.filePath,
-        reason: f.reason || "unknown"
-      })) || [];
-      const removed = s.removedFunctions?.map((f) => ({
-        name: f.qualifiedName || f.name,
-        file: f.filePath,
-        reason: f.reason || "removed"
-      })) || [];
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            changedCount: changed.length,
-            removedCount: removed.length,
-            changed,
-            removed
-          }, null, 2)
-        }]
-      };
-    }
-
-    case "symapse_status": {
-      await ensureIndex();
-      const status = await getStatus(repoRoot);
-      const summary = {
-        repoRoot: status.repoRoot,
-        files: status.summary?.fileCount || 0,
-        symbols: status.summary?.symbolCount || 0,
-        edges: status.summary?.edgeCount || 0,
-        functions: status.summary?.functionCount || 0,
-        classes: status.summary?.classCount || 0,
-        methods: status.summary?.methodCount || 0,
-        changedCount: status.summary?.changedCount || 0,
-        removedCount: status.summary?.removedCount || 0,
-        initialIndex: status.summary?.initialIndex || false,
-        topFiles: (status.topFiles || []).map((f) => ({
-          file: f.filePath,
-          symbolCount: f.count
-        }))
-      };
-      return {
-        content: [{ type: "text", text: JSON.stringify(summary, null, 2) }]
-      };
-    }
-
-    case "symapse_overlap": {
-      await ensureIndex();
-      const result = await findSemanticOverlaps(repoRoot, args.limit || 20, args.minScore || 15);
-      const compact = result.overlaps.map((p) => ({
-        functionA: p.functionA.name,
-        functionB: p.functionB.name,
-        file: p.functionA.filePath,
-        score: p.score,
-        signals: p.signals,
-        recommendation: p.recommendation,
-        sharedCallees: p.sharedCallees
-      }));
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            totalPairs: result.totalPairs,
-            overlaps: compact
-          }, null, 2)
-        }]
-      };
-    }
-
-    case "symapse_architecture": {
-      await ensureIndex();
-      const result = await getArchitectureSummary(repoRoot);
-      const compact = {
-        domains: result.domains?.map((d) => ({ name: d.name, files: d.fileCount, symbols: d.symbolCount })) || [],
-        criticalModules: result.criticalModules?.map((m) => ({ file: m.filePath, symbols: m.symbolCount, importedBy: m.importedByCount, criticality: m.criticality })) || [],
-        hubFunctions: result.hubFunctions?.slice(0, 10).map((h) => ({ name: h.qualifiedName, file: h.filePath, inboundCalls: h.inboundCalls })) || [],
-        entryPoints: result.entryPoints?.map((e) => ({ name: e.qualifiedName, file: e.filePath })) || [],
-        summary: result.summary
-      };
-      return {
-        content: [{ type: "text", text: JSON.stringify(compact, null, 2) }]
-      };
-    }
-
-    case "symapse_where": {
-      await ensureIndex();
-      const result = await findWhereToIntegrate(repoRoot, args.description || "", args.limit || 5);
-      const compact = {
-        query: result.query,
-        candidates: result.candidates.map((c) => ({
-          module: c.module,
-          directory: c.directory,
-          symbols: c.symbolCount,
-          nearestSymbol: c.nearestSymbol,
-          risk: c.risk,
-          riskReason: c.riskReason,
-          conventions: c.conventions,
-          rationale: c.rationale
-        })),
-        relatedSymbols: result.relatedSymbols?.map((s) => s.name) || []
-      };
-      return {
-        content: [{ type: "text", text: JSON.stringify(compact, null, 2) }]
-      };
-    }
-
-    case "symapse_architecture": {
-      await ensureIndex();
-      const result = await getArchitectureSummary(repoRoot);
-      const compact = {
-        summary: result.summary,
-        domainCount: result.domains?.length || 0,
-        domains: result.domains?.map((d) => ({
-          name: d.name,
-          symbols: d.symbolCount,
-          exported: d.exportedCount,
-          internal: d.internalCount,
-          files: d.fileCount,
-          top: d.topSymbols
-        })),
-        criticalModules: result.criticalModules?.slice(0, 8),
-        hubFunctions: result.hubFunctions,
-        entryPoints: result.entryPoints,
-        flows: result.interModuleFlows
-      };
-      return {
-        content: [{ type: "text", text: JSON.stringify(compact, null, 2) }]
-      };
-    }
-
-    case "symapse_clarify": {
-      await ensureIndex();
-      const result = await clarifyRequest(repoRoot, args.description || "");
-      const prior = await queryKnowledge(repoRoot, null);
-      let knowledgeNote = "";
-      if (prior.length > 0) {
-        const findings = prior.filter(r => r.type === "finding").slice(0, 3);
-        const patterns = prior.filter(r => r.type === "pattern").slice(0, 2);
-        if (findings.length || patterns.length) {
-          knowledgeNote = "\n\n---\n**Prior sessions discovered:**\n";
-          for (const f of findings) knowledgeNote += `- ${f.key}: ${f.value}\n`;
-          for (const p of patterns) knowledgeNote += `- Pattern: ${p.key} → ${p.value}\n`;
-        }
-      }
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            request: result.request,
-            confidence: result.confidence,
-            action: result.action,
-            signals: result.signals,
-            ambiguousTerms: result.ambiguousTerms,
-            missingDecisions: result.missingDecisions,
-            relatedSystems: result.relatedSystems.filter((s) => s.score >= 2).map((s) => s.name),
-            architecturalTargets: result.architecturalTargets,
-            questions: result.questions,
-            priorKnowledge: knowledgeNote || null
-          }, null, 2)
-        }]
-      };
-    }
-
-    case "symapse_context": {
-      await ensureIndex();
-      const result = await getContextFiles(repoRoot, args.description || "");
-      const boosted = sessionBoost(result.files, []);
-      result.files = boosted;
-      result.directive = result.directive || "";
-      if (sessionQueries.length >= 2) {
-        result.directive = result.directive.replace("DO NOT read other files.", "DO NOT read other files. Recent session activity shows you're working near: " + [...new Set(sessionQueries.slice(-3).flatMap(q => q.symbols.map(s => s.name)))].slice(0, 5).join(", ") + ".");
-      }
-      recordSessionQuery(repoRoot, sessionId, args.description || "", result.files.map(f => f.topSymbols).flat().filter(Boolean));
-      sessionQueries.push({ query: args.description || "", symbols: result.files.map(f => ({ name: f.topSymbols[0], filePath: f.file })).filter(s => s.name) });
-      return {
-        content: [{ type: "text", text: result.directive }]
-      };
-    }
-
-    case "symapse_refresh": {
-      state = await refreshIndex(repoRoot);
-      lastIndexed = Date.now();
-      const summary = state.summary || {};
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            ok: true,
-            files: summary.fileCount,
-            symbols: summary.symbolCount,
-            edges: summary.edgeCount,
-            changedCount: summary.changedCount || 0,
-            removedCount: summary.removedCount || 0
-          }, null, 2)
-        }]
-      };
-    }
-
-    default:
-      return {
-        content: [{ type: "text", text: JSON.stringify({ error: "unknown_tool", tool: toolName }) }],
-        isError: true
-      };
+  default:
+    return { content: [{ type: "text", text: JSON.stringify({ error: "unknown_tool", tool: toolName }) }], isError: true };
   }
 }
 

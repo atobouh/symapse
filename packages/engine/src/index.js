@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readIndexState, writeIndexState, ensureSessionSchema, writeSessionSignal, querySessionSignals as dbQuerySessionSignals, storeKnowledge as dbStoreKnowledge, queryKnowledge as dbQueryKnowledge, validateKnowledge as dbValidateKnowledge, recomputeWeights as dbRecomputeWeights, getSymbolWeights as dbGetSymbolWeights } from "../../db/src/store.js";
 
-const ENGINE_VERSION = 14;
+const ENGINE_VERSION = 15;
 const LOG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../.symapse/symapse_log.jsonl");
 
 function symapseLog(entry) {
