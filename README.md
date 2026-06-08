@@ -61,23 +61,18 @@ Add to your project's `opencode.json`:
 Create an `AGENTS.md` in your project root with:
 
 ```markdown
-## RULE 1: First action — symapse_clarify
-
-Before ANYTHING else, call `symapse_clarify "<request>"`. If it returns questions, ASK them. Do not guess.
-
-## RULE 2: Always check Symapse before reading files
+## RULE 1: Always check Symapse first
 
 | Instead of... | Use... |
 |---|---|
-| Reading files to understand repo | `symapse_architecture` |
-| Grepping for symbols | `symapse_search` |
-| Tracing callers | `symapse_impact` |
-| Guessing where code goes | `symapse_where` |
-| Checking for duplicates | `symapse_overlap` |
-| Finding dead code | `symapse_deadcode` |
-| Finding must-read files | `symapse_context` |
+| Reading files for architecture | `symapse_map` |
+| Grepping for symbols | `symapse_find` |
+| Guessing where code goes | `symapse_ask` |
+| Finding dead code or duplicates | `symapse_audit` |
+| Re-indexing or checking status | `symapse_health` |
 
-If Symapse doesn't answer your question, read files. But check Symapse first.
+First action every session: `symapse_ask "<request>"`. If it returns questions, ASK them.
+If Symapse doesn't answer your question, read files.
 ```
 
 ---
@@ -86,16 +81,11 @@ If Symapse doesn't answer your question, read files. But check Symapse first.
 
 | Tool | Question it answers |
 |---|---|
-| `symapse_architecture` | Explain this repo |
-| `symapse_clarify` | What am I assuming? |
-| `symapse_search` | Where does this thing live? |
-| `symapse_impact` | What breaks if I change this? |
-| `symapse_deadcode` | What can I safely delete? |
-| `symapse_overlap` | Did we build this already? |
-| `symapse_where` | Where should this new thing go? |
-| `symapse_context` | Which files must I read? |
-| `symapse_conventions` | What patterns should I follow? |
-| `symapse_changes` | What changed? |
+| `symapse_ask` | What should I know before working on X? |
+| `symapse_find` | Where is X and what does it touch? |
+| `symapse_map` | Show me the shape of this repo / feature |
+| `symapse_audit` | What's wrong, unused, or duplicated? |
+| `symapse_health` | What's the state of the index? |
 
 ---
 
