@@ -152,18 +152,32 @@ async function handleToolsCall(params) {
   switch (toolName) {
     case "symapse_ask": {
       await ensureIndex();
-      const result = await clarifyRequest(repoRoot, args.description || "");
+      const desc = (args.description || "").toLowerCase();
       const where = await findWhereToIntegrate(repoRoot, args.description || "", 2);
-      const conventions = await getConventions(repoRoot);
       const prior = await queryKnowledge(repoRoot, null);
-      const knowledgeNote = prior.length > 0 ? prior.slice(0, 3).map(p => p.key + ": " + p.value).join("; ") : null;
+      const canonicality = await computeCanonicalityScores(repoRoot);
+      const state = await ensureState(repoRoot);
+      const symbols = state.symbols || [];
+      const terms = desc.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(w => w.length >= 3 && !/^the|and|for|that|this|with|from|have|will|what|when|your|how|can|use|want|make|need|like|just|should|would|could$/i.test(w));
+      const signals = []; let resolved = [], gaps = [];
+      for (const term of terms) {
+        const matches = symbols.filter(s => s.name?.toLowerCase().includes(term) || s.qualifiedName?.toLowerCase().includes(term));
+        const highCanon = matches.filter(s => (canonicality.get(s.filePath) || 0) >= 0.3);
+        const weight = Math.min(1.0, highCanon.length * 0.25);
+        signals.push({ term, weight, foundIn: highCanon.slice(0, 3).map(s => s.name) });
+        if (weight >= 0.5) resolved.push(term);
+        else if (weight <= 0.2) gaps.push({ term, canonicality: weight, note: weight === 0 ? "no existing implementation" : "exists in low-connectivity files" });
+      }
+      const known = signals.filter(s => s.weight >= 0.5).flatMap(s => s.foundIn);
+      const knownCount = new Set(known).size;
+      const unknowns = gaps.map(g => g.term);
+      const maxCanon = Math.max(...signals.map(s => s.weight), 0);
+      const prompt = `Known: ${knownCount} symbols, highest relevance ${Math.round(maxCanon*100)}%. Unknown: ${unknowns.length} terms (${unknowns.join(", ") || "none"}). What does this tell you about the task ahead?`;
       return { content: [{ type: "text", text: JSON.stringify({
-        intent: result.intent, confidence: result.confidence,
-        questions: result.questions, ambiguousTerms: result.ambiguousTerms,
-        relatedSystems: result.relatedSystems?.filter(s => s.score >= 2).map(s => s.name) || [],
+        prompt, signals, resolved, graphGaps: gaps,
+        relatedSystems: signals.filter(s => s.weight >= 0.3).flatMap(s => s.foundIn).slice(0, 8),
         architecturalTargets: where.candidates?.map(c => ({ module: c.module, risk: c.risk, rationale: c.rationale })) || [],
-        conventions: (conventions.domains || []).slice(0, 3).map(d => ({ module: d.module, symbols: d.symbolCount, exportedCount: d.exportedCount })),
-        priorKnowledge: knowledgeNote
+        priorKnowledge: prior.length > 0 ? prior.slice(0, 3).map(p => p.key + ": " + p.value).join("; ") : null
       }, null, 2) }] };
     }
 
