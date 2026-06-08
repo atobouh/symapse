@@ -369,7 +369,11 @@ async function handleToolsCall(params) {
       }
       const arch = await getArchitectureSummary(repoRoot);
       const symbols = state.symbols || [];
-      const nameToFile = new Map(symbols.map(s => [s.qualifiedName, s.filePath]));
+      const nameToFile = new Map();
+      for (const s of symbols) {
+        nameToFile.set(s.name, s.filePath);
+        nameToFile.set(s.qualifiedName, s.filePath);
+      }
       const domains = (arch.domains || []).map(d => {
         const firstFile = nameToFile.get(d.topSymbols?.[0]);
         return { name: d.name, symbols: d.symbolCount, canonicality: canonicality.get(firstFile) || 0 };
@@ -466,16 +470,17 @@ async function handleToolsCall(params) {
       }, null, 2) }] };
     }
 
-    // Deprecated — forward to new names
+    // Deprecated — return clear migration message
     case "symapse_clarify": case "symapse_where": case "symapse_conventions":
-      return handleToolsCall({ name: "symapse_ask", arguments: { description: args.description || args.query || "" } });
+      return { content: [{ type: "text", text: JSON.stringify({ deprecated: true, note: `'${toolName}' has moved to 'symapse_ask'. Use symapse_ask with the same description.` }, null, 2) }] };
     case "symapse_search": case "symapse_impact": case "symapse_changes":
-      return handleToolsCall({ name: "symapse_find", arguments: { query: args.query || args.name || "" } });
+      return { content: [{ type: "text", text: JSON.stringify({ deprecated: true, note: `'${toolName}' has moved to 'symapse_find'. Use symapse_find with the same query.` }, null, 2) }] };
     case "symapse_architecture": case "symapse_context": case "symapse_overlap":
-      return handleToolsCall({ name: "symapse_map", arguments: { description: args.description || args.query || "" } });
+      return { content: [{ type: "text", text: JSON.stringify({ deprecated: true, note: `'${toolName}' has moved to 'symapse_map'.` }, null, 2) }] };
     case "symapse_deadcode":
-      return handleToolsCall({ name: "symapse_audit", arguments: { limit: args.limit } });
+      return { content: [{ type: "text", text: JSON.stringify({ deprecated: true, note: "'symapse_deadcode' has moved to 'symapse_audit'." }, null, 2) }] };
     case "symapse_refresh": case "symapse_status":
+      return { content: [{ type: "text", text: JSON.stringify({ deprecated: true, note: `'${toolName}' has moved to 'symapse_health'.` }, null, 2) }] };
 
   default:
     return { content: [{ type: "text", text: JSON.stringify({ error: "unknown_tool", tool: toolName }) }], isError: true };
