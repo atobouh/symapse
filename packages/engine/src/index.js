@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readIndexState, writeIndexState, ensureSessionSchema, writeSessionSignal, querySessionSignals as dbQuerySessionSignals, storeKnowledge as dbStoreKnowledge, queryKnowledge as dbQueryKnowledge, validateKnowledge as dbValidateKnowledge } from "../../db/src/store.js";
+import { readIndexState, writeIndexState, ensureSessionSchema, writeSessionSignal, querySessionSignals as dbQuerySessionSignals, storeKnowledge as dbStoreKnowledge, queryKnowledge as dbQueryKnowledge, validateKnowledge as dbValidateKnowledge, recomputeWeights as dbRecomputeWeights, getSymbolWeights as dbGetSymbolWeights } from "../../db/src/store.js";
 
 const ENGINE_VERSION = 14;
 const LOG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../.symapse/symapse_log.jsonl");
@@ -621,6 +621,7 @@ export async function indexRepository(targetPath, options = {}) {
   const activeSymbols = (state.symbols || []).map(s => s.qualifiedName).filter(Boolean);
   const activeFiles = (state.symbols || []).map(s => s.filePath).filter(Boolean);
   dbValidateKnowledge(storageRoot, activeSymbols, activeFiles).catch(() => {});
+  dbRecomputeWeights(storageRoot).catch(() => {});
 
   return state;
 }
@@ -1109,6 +1110,7 @@ export async function getContextFiles(repoRoot, description, limit = 0) {
   let dominantExt = ""; let maxExt = 0; for (const [e, c] of extCounts) { if (c > maxExt) { maxExt = c; dominantExt = e; } }
 
   const rc = buildRelationCounts(symbols.filter(sym => allowed.has(sym.kind)), relations);
+  const weights = await dbGetSymbolWeights(repoRoot);
   const scored = symbols.filter(sym => allowed.has(sym.kind) && sym.filePath && !sym.filePath.endsWith(".md")).map(sym => {
     let sc = 0; let bh = 0, nh = 0;
     const ln = sym.qualifiedName.toLowerCase(), lf = (sym.filePath || "").toLowerCase(), lb = (sym.body || "").toLowerCase();
@@ -1120,6 +1122,8 @@ export async function getContextFiles(repoRoot, description, limit = 0) {
     if (sym.exported) sc += 3;
     const ext = (sym.filePath || "").split(".").pop()?.toLowerCase();
     if (ext && dominantExt && ext !== dominantExt) sc = Math.floor(sc * 0.3);
+    const w = weights.get(sym.qualifiedName) || 1.0;
+    if (w !== 1.0) sc = Math.round(sc * w);
     const role = detectRole(sym.body, sym.name, sym.filePath);
     return { symbol: sym, score: sc, fanIn, fanOut, role, hasRole: role !== null, bodyHits: bh, nameHits: nh };
   }).filter(e => e.score > 0).sort((a, b) => b.score - a.score);

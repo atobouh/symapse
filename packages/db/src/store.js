@@ -318,6 +318,7 @@ export async function validateKnowledge(repoRoot, activeSymbols, activeFiles) {
   const db = openDatabase(repoRoot);
   try {
     db.exec("CREATE TABLE IF NOT EXISTS codebase_knowledge (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, session_id TEXT, confidence REAL DEFAULT 1.0, timestamp TEXT DEFAULT (datetime('now')))");
+    try { db.exec("ALTER TABLE codebase_knowledge ADD COLUMN confidence REAL DEFAULT 1.0"); } catch {}
     const all = db.prepare("SELECT id, key, type, confidence FROM codebase_knowledge WHERE confidence >= 0.15").all();
     const degrade = db.prepare("UPDATE codebase_knowledge SET confidence = ? WHERE id = ?");
     const purge = db.prepare("DELETE FROM codebase_knowledge WHERE id = ?");
@@ -329,10 +330,7 @@ export async function validateKnowledge(repoRoot, activeSymbols, activeFiles) {
       let exists = false;
       for (const part of parts) {
         const trimmed = part.trim();
-        if (symSet.has(trimmed) || fileSet.has(trimmed) || [...symSet].some(s => s.includes(trimmed))) {
-          exists = true;
-          break;
-        }
+        if (symSet.has(trimmed) || fileSet.has(trimmed) || [...symSet].some(s => s.includes(trimmed))) { exists = true; break; }
       }
       if (!exists) {
         const newConf = entry.confidence - 0.3;
@@ -340,5 +338,31 @@ export async function validateKnowledge(repoRoot, activeSymbols, activeFiles) {
         else degrade.run(newConf, entry.id);
       }
     }
+  } finally { db.close(); }
+}
+
+export async function recomputeWeights(repoRoot) {
+  await ensureStateDir(repoRoot);
+  const db = openDatabase(repoRoot);
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS symbol_weights (symbol TEXT PRIMARY KEY, weight REAL, updated TEXT)");
+    db.exec("CREATE TABLE IF NOT EXISTS session_signals (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, action_type TEXT NOT NULL, symbol_or_file TEXT NOT NULL, timestamp TEXT DEFAULT (datetime('now')))");
+    const signals = db.prepare("SELECT symbol_or_file, COUNT(*) as cnt FROM session_signals WHERE action_type = 'queried' GROUP BY symbol_or_file ORDER BY cnt DESC LIMIT 200").all();
+    const maxCount = signals.length > 0 ? Math.max(...signals.map(s => s.cnt)) : 1;
+    const upsert = db.prepare("INSERT OR REPLACE INTO symbol_weights (symbol, weight, updated) VALUES (?, ?, datetime('now'))");
+    for (const s of signals) {
+      const weight = Math.min(2.0, 0.8 + (s.cnt / Math.max(1, maxCount)) * 1.2);
+      upsert.run(s.symbol_or_file, weight);
+    }
+  } finally { db.close(); }
+}
+
+export async function getSymbolWeights(repoRoot) {
+  await ensureStateDir(repoRoot);
+  const db = openDatabase(repoRoot);
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS symbol_weights (symbol TEXT PRIMARY KEY, weight REAL, updated TEXT)");
+    const rows = db.prepare("SELECT symbol, weight FROM symbol_weights").all();
+    return new Map(rows.map(r => [r.symbol, r.weight]));
   } finally { db.close(); }
 }
