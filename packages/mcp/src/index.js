@@ -345,6 +345,7 @@ async function handleToolsCall(params) {
       await ensureIndex();
       const desc = args.description || "";
       const canonicality = await computeCanonicalityScores(repoRoot);
+      const state = await ensureState(repoRoot);
       if (desc) {
         const ctx = await getContextFiles(repoRoot, desc);
         const where = await findWhereToIntegrate(repoRoot, desc, 2);
@@ -367,7 +368,12 @@ async function handleToolsCall(params) {
         }, null, 2) }] };
       }
       const arch = await getArchitectureSummary(repoRoot);
-      const domains = (arch.domains || []).map(d => ({ name: d.name, symbols: d.symbolCount, canonicality: (canonicality.get(d.topSymbols?.[0]?.filePath) || canonicality.get(d.name)) || 0 }));
+      const symbols = state.symbols || [];
+      const nameToFile = new Map(symbols.map(s => [s.qualifiedName, s.filePath]));
+      const domains = (arch.domains || []).map(d => {
+        const firstFile = nameToFile.get(d.topSymbols?.[0]);
+        return { name: d.name, symbols: d.symbolCount, canonicality: canonicality.get(firstFile) || 0 };
+      });
       return { content: [{ type: "text", text: JSON.stringify({
         domains: domains.sort((a,b) => b.canonicality - a.canonicality),
         critical: arch.criticalModules?.slice(0, 8)?.map(m => ({ name: m.name, fanIn: m.fanIn, fanOut: m.fanOut })),
@@ -397,9 +403,7 @@ async function handleToolsCall(params) {
     case "symapse_ask": {
       await ensureIndex();
       const desc = (args.description || "").toLowerCase();
-      const result = await clarifyRequest(repoRoot, args.description || "");
       const where = await findWhereToIntegrate(repoRoot, args.description || "", 2);
-      const conventions = await getConventions(repoRoot);
       const prior = await queryKnowledge(repoRoot, null);
       const canonicality = await computeCanonicalityScores(repoRoot);
 
@@ -407,38 +411,34 @@ async function handleToolsCall(params) {
       const symbols = state.symbols || [];
       const terms = desc.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(w => w.length >= 3 && !/^the|and|for|that|this|with|from|have|will|what|when|your|how|can|use|want|make|need|like|just|should|would|could$/i.test(w));
       const signals = [];
-      let resolved = [], gaps = [], blocking = [];
+      let resolved = [], gaps = [];
 
       for (const term of terms) {
         const matches = symbols.filter(s => s.name?.toLowerCase().includes(term) || s.qualifiedName?.toLowerCase().includes(term));
         const highCanon = matches.filter(s => (canonicality.get(s.filePath) || 0) >= 0.3);
         const weight = Math.min(1.0, highCanon.length * 0.25);
 
-        signals.push({ term, weight, foundIn: highCanon.slice(0, 3).map(s => s.qualifiedName) });
+        signals.push({ term, weight, foundIn: highCanon.slice(0, 3).map(s => s.name) });
 
-        if (weight >= 0.5) {
-          resolved.push(term);
-        } else if (weight <= 0.2) {
-          gaps.push({ term, canonicality: weight, note: weight === 0 ? "no existing implementation" : "exists but low connectivity" });
-          blocking.push(term + ": " + (weight === 0 ? "no existing implementation found — which approach?" : "exists in low-connectivity files — reuse or build new?"));
+        if (weight >= 0.5) resolved.push(term);
+        else if (weight <= 0.2) {
+          gaps.push({ term, canonicality: weight, note: weight === 0 ? "no existing implementation" : "exists in low-connectivity files" });
         }
       }
-
-      const priorKnowledge = prior.length > 0 ? prior.slice(0, 3).map(p => p.key + ": " + p.value).join("; ") : null;
 
       const known = signals.filter(s => s.weight >= 0.5).flatMap(s => s.foundIn);
       const knownCount = new Set(known).size;
       const unknowns = gaps.map(g => g.term);
       const topCanonicity = Math.max(...signals.map(s => s.weight), 0);
-      const conflictCount = blocking.length;
 
-      const prompt = `Known: ${knownCount} symbols matched, highest relevance ${Math.round(topCanonicity * 100)}%. Unknown: ${unknowns.length} terms (${unknowns.join(", ") || "none"}). Conflicts: ${conflictCount}. What does this tell you about the task ahead?`;
+      const prompt = `Known: ${knownCount} symbols, highest relevance ${Math.round(topCanonicity * 100)}%. Unknown: ${unknowns.length} terms (${unknowns.join(", ") || "none"}). What does this tell you about the task ahead?`;
+
+      const priorKnowledge = prior.length > 0 ? prior.slice(0, 3).map(p => p.key + ": " + p.value).join("; ") : null;
 
       return { content: [{ type: "text", text: JSON.stringify({
         prompt,
-        intent: result.intent, confidence: result.confidence,
         signals, resolved, graphGaps: gaps,
-        relatedSystems: result.relatedSystems?.filter(s => s.score >= 2).map(s => s.name) || [],
+        relatedSystems: signals.filter(s => s.weight >= 0.3).flatMap(s => s.foundIn).slice(0, 8),
         architecturalTargets: where.candidates?.map(c => ({ module: c.module, risk: c.risk, rationale: c.rationale })) || [],
         priorKnowledge
       }, null, 2) }] };
