@@ -325,11 +325,13 @@ async function handleToolsCall(params) {
       }
       const impact = await getImpact(repoRoot, query);
       if (impact && impact.matchedFunctions?.length > 0) {
-        const rankedFiles = (impact.impactedFiles || []).sort((a,b) => (canonicality.get(b)||0) - (canonicality.get(a)||0));
+        const rankedFiles = [...new Set(impact.impactedFiles || [])].sort((a,b) => (canonicality.get(b)||0) - (canonicality.get(a)||0));
+        const dedupedCallers = [...new Set((impact.directCallers || []).map(c => c.qualifiedName))];
+        const dedupedCallees = [...new Set((impact.directCallees || []).map(c => c.qualifiedName))];
         return { content: [{ type: "text", text: JSON.stringify({
           symbol: query, location: impact.matchedFunctions[0].filePath + ":" + impact.matchedFunctions[0].startLine,
-          directCallers: impact.directCallers?.map(c => c.qualifiedName) || [],
-          directCallees: impact.directCallees?.map(c => c.qualifiedName) || [],
+          directCallers: dedupedCallers,
+          directCallees: dedupedCallees,
           impactedFiles: rankedFiles.map(f => ({ file: f, confidence: canonicality.get(f) || 0 })),
           impactfulSymbolCount: impact.impactedSymbols?.length || 0
         }, null, 2) }] };
@@ -424,13 +426,20 @@ async function handleToolsCall(params) {
 
       const priorKnowledge = prior.length > 0 ? prior.slice(0, 3).map(p => p.key + ": " + p.value).join("; ") : null;
 
+      const known = signals.filter(s => s.weight >= 0.5).flatMap(s => s.foundIn);
+      const knownCount = new Set(known).size;
+      const unknowns = gaps.map(g => g.term);
+      const topCanonicity = Math.max(...signals.map(s => s.weight), 0);
+      const conflictCount = blocking.length;
+
+      const prompt = `Known: ${knownCount} symbols matched, highest relevance ${Math.round(topCanonicity * 100)}%. Unknown: ${unknowns.length} terms (${unknowns.join(", ") || "none"}). Conflicts: ${conflictCount}. What does this tell you about the task ahead?`;
+
       return { content: [{ type: "text", text: JSON.stringify({
+        prompt,
         intent: result.intent, confidence: result.confidence,
-        signals, resolved, graphGaps: gaps, blockingQuestions: blocking.slice(0, 5),
-        questions: result.questions.slice(0, 3),
+        signals, resolved, graphGaps: gaps,
         relatedSystems: result.relatedSystems?.filter(s => s.score >= 2).map(s => s.name) || [],
         architecturalTargets: where.candidates?.map(c => ({ module: c.module, risk: c.risk, rationale: c.rationale })) || [],
-        conventions: (conventions.domains || []).slice(0, 3).map(d => ({ module: d.module, symbols: d.symbolCount })),
         priorKnowledge
       }, null, 2) }] };
     }
