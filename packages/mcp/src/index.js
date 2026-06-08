@@ -18,12 +18,14 @@ import {
   logSessionSignal,
   queryKnowledge,
   recordSessionQuery,
-  refreshIndex
+  refreshIndex,
+  startWatcher
 } from "../../engine/src/index.js";
 
 const repoRoot = path.resolve(process.env.SYMAPSE_REPO_ROOT || process.argv[2] || fileURLToPath(new URL("../../../", import.meta.url)));
 let state = null;
 let lastIndexed = null;
+let activeWatcher = null;
 const sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const sessionQueries = [];
 
@@ -435,6 +437,15 @@ async function handleToolsCall(params) {
 
     case "symapse_health": {
       await ensureIndex();
+      if (args.watch) {
+        if (activeWatcher) activeWatcher.stop();
+        const events = [];
+        activeWatcher = await startWatcher(repoRoot, (event) => {
+          events.push({ ...event, timestamp: new Date().toISOString() });
+          if (events.length > 50) events.shift();
+        });
+        return { content: [{ type: "text", text: JSON.stringify({ watching: repoRoot, mode: "collision + break + coherence + dead_on_arrival", events: "logged to memory, retrievable via health call", status: "active" }, null, 2) }] };
+      }
       if (args.refresh) { await refreshIndex(repoRoot); }
       const status = await getStatus(repoRoot);
       const canonicality = await computeCanonicalityScores(repoRoot);

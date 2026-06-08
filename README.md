@@ -33,6 +33,9 @@ symapse_find login
 symapse_map "direct login after payment"
 symapse_audit 10
 symapse_health
+
+# Live coding awareness — start watching for collisions, breaks, and dead code
+symapse_health --watch
 ```
 
 ---
@@ -85,7 +88,8 @@ If Symapse doesn't answer your question, read files.
 | `symapse_find` | Where is X and what does it touch? |
 | `symapse_map` | Show me the shape of this repo / feature |
 | `symapse_audit` | What's wrong, unused, or duplicated? |
-| `symapse_health` | What's the state of the index? |
+| `symapse_health` | What's the state of the index? Start watch mode |
+| `symapse_health --watch` | Live coding awareness: collision, break, coherence events on save |
 
 ---
 

@@ -706,6 +706,95 @@ export async function computeCanonicalityScores(repoRoot) {
   return scores;
 }
 
+export async function startWatcher(repoRoot, onEvent) {
+  const state = await ensureState(repoRoot);
+  const sourceRoot = state.sourceRoot || repoRoot;
+  const watchers = new Map();
+  let running = true;
+
+  async function processFile(filePath) {
+    if (!running) return;
+    try {
+      const source = await fs.readFile(filePath, "utf8");
+      const normalizedPath = filePath.replace(sourceRoot, "").replace(/\\/g, "/").replace(/^\//, "");
+      if (!isProbablySourceFile(normalizedPath)) return;
+
+      const { symbols: newSymbols } = extractSymbolsForFile(source, normalizedPath);
+      const newNames = new Set(newSymbols.filter(s => s.kind === "function" || s.kind === "method").map(s => s.qualifiedName));
+
+      const existingSymbols = (state.symbols || []).filter(s => s.filePath !== normalizedPath && (s.kind === "function" || s.kind === "method"));
+      const relations = state.relations || [];
+
+      for (const sym of newSymbols) {
+        if (sym.kind !== "function" && sym.kind !== "method") continue;
+
+        // Collision: overlap check
+        const existingNames = existingSymbols.filter(e => e.qualifiedName !== sym.qualifiedName);
+        for (const existing of existingNames.slice(0, 50)) {
+          if (!sym.body || !existing.body) continue;
+          const a = (sym.body || "").replace(/\s+/g, " ").trim().toLowerCase();
+          const b = (existing.body || "").replace(/\s+/g, " ").trim().toLowerCase();
+          if (a.length < 20 || b.length < 20) continue;
+          const commonChars = [...a].filter(c => b.includes(c)).length;
+          const similarity = commonChars / Math.max(a.length, b.length);
+          if (similarity >= 0.6) {
+            const callers = relations.filter(r => r.targetId === existing.id && r.kind === "call");
+            onEvent({ type: "collision", written: sym.qualifiedName, existing: existing.qualifiedName, existingFile: existing.filePath, similarity: Math.round(similarity * 100) / 100, existingCallers: callers.length, canonicality: 0.9 });
+            break;
+          }
+        }
+
+        // Dead on arrival: new function with 0 inbound callers from existing code
+        const existingCallers = relations.filter(r => r.targetId === sym.id && r.kind === "call");
+        if (existingCallers.length === 0 && sym.kind === "function" && !sym.exported) {
+          onEvent({ type: "dead_on_arrival", symbol: sym.qualifiedName, callers: 0, canonicality: 0.0 });
+        }
+      }
+
+      // Break: modified symbols that lost callers
+      for (const extSym of existingSymbols) {
+        const callers = relations.filter(r => r.targetId === extSym.id && r.kind === "call");
+        if (newNames.has(extSym.qualifiedName)) {
+          if (callers.length >= 3 && newSymbols.some(ns => ns.name === extSym.name && ns.body !== extSym.body)) {
+            const mismatchCount = callers.filter(c => {
+              if (!c.body) return false;
+              return !c.body.includes(extSym.qualifiedName);
+            }).length;
+            if (mismatchCount >= 2) {
+              onEvent({ type: "break", changed: extSym.qualifiedName, affectedCallers: callers.length, mismatchCount, confidence: Math.min(0.95, mismatchCount / callers.length) });
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const debounceTimers = new Map();
+  function handleChange(filePath) {
+    if (!running) return;
+    if (debounceTimers.has(filePath)) clearTimeout(debounceTimers.get(filePath));
+    debounceTimers.set(filePath, setTimeout(() => {
+      debounceTimers.delete(filePath);
+      processFile(filePath);
+    }, 800));
+  }
+
+  try {
+    const files = await collectFiles(sourceRoot);
+    for (const filePath of files) {
+      try {
+        const watcher = fs.watch(filePath, () => handleChange(filePath));
+        watchers.set(filePath, watcher);
+      } catch {}
+    }
+  } catch {}
+
+  return {
+    stop: () => { running = false; for (const w of watchers.values()) w.close(); watchers.clear(); },
+    refresh: () => ensureState(repoRoot)
+  };
+}
+
 export async function detectAndStorePatterns(repoRoot, sessionId) {
   const signals = await dbQuerySessionSignals(repoRoot);
   if (!signals || signals.length < 3) return [];
