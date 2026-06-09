@@ -19,7 +19,9 @@ import {
   queryKnowledge,
   recordSessionQuery,
   refreshIndex,
-  startWatcher
+  startSessionGate,
+  startWatcher,
+  verifySessionGate
 } from "../../engine/src/index.js";
 
 const repoRoot = path.resolve(process.env.SYMAPSE_REPO_ROOT || process.argv[2] || fileURLToPath(new URL("../../../", import.meta.url)));
@@ -126,8 +128,8 @@ const TOOLS = {
   },
   symapse_health: {
     name: "symapse_health",
-    description: "Index health and live watch. Returns file/symbol/edge counts, top files by canonicality. Use refresh=true to re-index. Use watch=true to start live file watcher emitting collision/break/dead_on_arrival events on save.",
-    inputSchema: { type: "object", properties: { refresh: { type: "boolean", description: "Force re-index" }, watch: { type: "boolean", description: "Start live file watcher for collision/break/dead_on_arrival events on save" } }, required: [] }
+    description: "Index health, live watch, and session gate. Returns file/symbol/edge counts, top files. Use refresh=true to re-index. Use watch=true for live file watcher. Use session=start to open a completion gate, session=end to trigger verification pass.",
+    inputSchema: { type: "object", properties: { refresh: { type: "boolean" }, watch: { type: "boolean" }, session: { type: "string", description: "'start' to open gate, 'end' for verification pass" } }, required: [] }
   },
 };
 
@@ -339,6 +341,14 @@ async function handleToolsCall(params) {
 
     case "symapse_health": {
       await ensureIndex();
+      if (args.session === "start") {
+        const gate = await startSessionGate(repoRoot);
+        return { content: [{ type: "text", text: JSON.stringify(gate, null, 2) }] };
+      }
+      if (args.session === "end") {
+        const verification = await verifySessionGate(repoRoot);
+        return { content: [{ type: "text", text: JSON.stringify(verification, null, 2) }] };
+      }
       if (args.watch) {
         if (activeWatcher) activeWatcher.stop();
         activeWatcher = await startWatcher(repoRoot);
