@@ -88,8 +88,14 @@ If Symapse doesn't answer your question, read files.
 | `symapse_find` | Where is X and what does it touch? |
 | `symapse_map` | Show me the shape of this repo / feature |
 | `symapse_audit` | What's wrong, unused, or duplicated? |
-| `symapse_health` | What's the state of the index? Start watch mode |
-| `symapse_health --watch` | Live coding awareness: collision, break, coherence events on save |
+| `symapse_diff` | After changes: what did I affect? What did watch detect? |
+| `symapse_health` | What's the state of the index? Watch mode |
+
+**Temporal workflow:**
+- Before coding: `symapse_ask` → `symapse_map` → `symapse_find`
+- During coding: `symapse_health --watch`
+- After each edit: `symapse_diff`
+- Maintenance: `symapse_audit` | `symapse_health`
 
 ---
 

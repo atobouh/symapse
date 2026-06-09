@@ -119,10 +119,15 @@ const TOOLS = {
     description: "Audit the codebase. Returns dead code candidates, semantic overlaps (near-duplicate functions), and convention violations. Combines deadcode + overlap + conventions.",
     inputSchema: { type: "object", properties: { limit: { type: "number", description: "Max results (default 10)" } }, required: [] }
   },
+  symapse_diff: {
+    name: "symapse_diff",
+    description: "Post-edit analysis. Given a list of changed files, returns what you affected (impact), what watch detected during coding, and a snapshot of the edit session. Use after every meaningful change during implementation.",
+    inputSchema: { type: "object", properties: { files: { type: "string", description: "Comma-separated list of changed file paths" } }, required: ["files"] }
+  },
   symapse_health: {
     name: "symapse_health",
-    description: "Index health. Returns file/symbol/edge counts, top files, index status. Use refresh flag to re-index. Combines status + refresh.",
-    inputSchema: { type: "object", properties: { refresh: { type: "boolean", description: "Force re-index (default false)" } }, required: [] }
+    description: "Index health and live watch. Returns file/symbol/edge counts, top files by canonicality. Use refresh=true to re-index. Use watch=true to start live file watcher emitting collision/break/dead_on_arrival events on save.",
+    inputSchema: { type: "object", properties: { refresh: { type: "boolean", description: "Force re-index" }, watch: { type: "boolean", description: "Start live file watcher for collision/break/dead_on_arrival events on save" } }, required: [] }
   },
 };
 
@@ -150,6 +155,24 @@ async function handleToolsCall(params) {
   const args = params.arguments || {};
 
   switch (toolName) {
+    case "symapse_diff": {
+      await ensureIndex();
+      const files = (args.files || "").split(",").map(f => f.trim()).filter(Boolean);
+      if (!files.length) return { content: [{ type: "text", text: JSON.stringify({ error: "no files provided" }, null, 2) }] };
+      const impacts = [];
+      const state = await ensureState(repoRoot);
+      const symbols = state.symbols || [];
+      for (const file of files) {
+        const fileSyms = symbols.filter(s => s.filePath && (s.filePath.endsWith(file) || s.filePath.includes(file)));
+        for (const sym of fileSyms.slice(0, 20)) {
+          const impact = await getImpact(repoRoot, sym.qualifiedName || sym.name);
+          if (impact) impacts.push({ symbol: sym.qualifiedName, callers: (impact.directCallers||[]).length, callees: (impact.directCallees||[]).length, impactedFiles: impact.impactedFiles?.length || 0 });
+        }
+      }
+      const watchEvents = activeWatcher ? activeWatcher.events().slice(-10) : [];
+      return { content: [{ type: "text", text: JSON.stringify({ files, impact: impacts, watchEvents: watchEvents.length > 0 ? watchEvents : "no watch events — start with symapse_health watch=true" }, null, 2) }] };
+    }
+
     case "symapse_ask": {
       await ensureIndex();
       const desc = (args.description || "").toLowerCase();
@@ -318,12 +341,8 @@ async function handleToolsCall(params) {
       await ensureIndex();
       if (args.watch) {
         if (activeWatcher) activeWatcher.stop();
-        const events = [];
-        activeWatcher = await startWatcher(repoRoot, (event) => {
-          events.push({ ...event, timestamp: new Date().toISOString() });
-          if (events.length > 50) events.shift();
-        });
-        return { content: [{ type: "text", text: JSON.stringify({ watching: repoRoot, mode: "collision + break + coherence + dead_on_arrival", events: "logged to memory, retrievable via health call", status: "active" }, null, 2) }] };
+        activeWatcher = await startWatcher(repoRoot);
+        return { content: [{ type: "text", text: JSON.stringify({ watching: repoRoot, events: "logged to .symapse/_watch_events.jsonl — use symapse_diff to retrieve", status: "active" }, null, 2) }] };
       }
       if (args.refresh) { await refreshIndex(repoRoot); }
       const status = await getStatus(repoRoot);

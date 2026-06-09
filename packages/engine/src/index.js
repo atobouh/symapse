@@ -706,11 +706,29 @@ export async function computeCanonicalityScores(repoRoot) {
   return scores;
 }
 
+let globalWatcher = null;
+let eventLog = [];
+
 export async function startWatcher(repoRoot, onEvent) {
+  if (globalWatcher) globalWatcher.stop();
+
   const state = await ensureState(repoRoot);
   const sourceRoot = state.sourceRoot || repoRoot;
   const watchers = new Map();
   let running = true;
+
+  function emitEvent(event) {
+    const entry = { ...event, timestamp: new Date().toISOString() };
+    eventLog.push(entry);
+    if (eventLog.length > 500) eventLog.shift();
+    try { appendFileSync(path.join(state.storageRoot || repoRoot, ".symapse", "_watch_events.jsonl"), JSON.stringify(entry) + "\n"); } catch {}
+    if (onEvent) onEvent(event);
+  }
+
+  function readEventLog() {
+    const events = [...eventLog];
+    return events;
+  }
 
   async function processFile(filePath) {
     if (!running) return;
@@ -720,48 +738,38 @@ export async function startWatcher(repoRoot, onEvent) {
       if (!isProbablySourceFile(normalizedPath)) return;
 
       const { symbols: newSymbols } = extractSymbolsForFile(source, normalizedPath);
-      const newNames = new Set(newSymbols.filter(s => s.kind === "function" || s.kind === "method").map(s => s.qualifiedName));
-
       const existingSymbols = (state.symbols || []).filter(s => s.filePath !== normalizedPath && (s.kind === "function" || s.kind === "method"));
       const relations = state.relations || [];
 
       for (const sym of newSymbols) {
         if (sym.kind !== "function" && sym.kind !== "method") continue;
-
-        // Collision: overlap check
         const existingNames = existingSymbols.filter(e => e.qualifiedName !== sym.qualifiedName);
         for (const existing of existingNames.slice(0, 50)) {
           if (!sym.body || !existing.body) continue;
-          const a = (sym.body || "").replace(/\s+/g, " ").trim().toLowerCase();
-          const b = (existing.body || "").replace(/\s+/g, " ").trim().toLowerCase();
+          const a = (sym.body || "").replace(/\s+/g," ").trim().toLowerCase();
+          const b = (existing.body || "").replace(/\s+/g," ").trim().toLowerCase();
           if (a.length < 20 || b.length < 20) continue;
           const commonChars = [...a].filter(c => b.includes(c)).length;
           const similarity = commonChars / Math.max(a.length, b.length);
           if (similarity >= 0.6) {
             const callers = relations.filter(r => r.targetId === existing.id && r.kind === "call");
-            onEvent({ type: "collision", written: sym.qualifiedName, existing: existing.qualifiedName, existingFile: existing.filePath, similarity: Math.round(similarity * 100) / 100, existingCallers: callers.length, canonicality: 0.9 });
+            emitEvent({ type: "collision", written: sym.qualifiedName, existing: existing.qualifiedName, existingFile: existing.filePath, similarity: Math.round(similarity * 100) / 100, existingCallers: callers.length });
             break;
           }
         }
-
-        // Dead on arrival: new function with 0 inbound callers from existing code
         const existingCallers = relations.filter(r => r.targetId === sym.id && r.kind === "call");
         if (existingCallers.length === 0 && sym.kind === "function" && !sym.exported) {
-          onEvent({ type: "dead_on_arrival", symbol: sym.qualifiedName, callers: 0, canonicality: 0.0 });
+          emitEvent({ type: "dead_on_arrival", symbol: sym.qualifiedName, callers: 0 });
         }
       }
 
-      // Break: modified symbols that lost callers
       for (const extSym of existingSymbols) {
         const callers = relations.filter(r => r.targetId === extSym.id && r.kind === "call");
-        if (newNames.has(extSym.qualifiedName)) {
+        if (new Set(newSymbols.map(s => s.qualifiedName)).has(extSym.qualifiedName)) {
           if (callers.length >= 3 && newSymbols.some(ns => ns.name === extSym.name && ns.body !== extSym.body)) {
-            const mismatchCount = callers.filter(c => {
-              if (!c.body) return false;
-              return !c.body.includes(extSym.qualifiedName);
-            }).length;
+            const mismatchCount = callers.filter(c => !(c.body || "").includes(extSym.qualifiedName)).length;
             if (mismatchCount >= 2) {
-              onEvent({ type: "break", changed: extSym.qualifiedName, affectedCallers: callers.length, mismatchCount, confidence: Math.min(0.95, mismatchCount / callers.length) });
+              emitEvent({ type: "break", changed: extSym.qualifiedName, affectedCallers: callers.length, mismatchCount, confidence: Math.min(0.95, mismatchCount / callers.length) });
             }
           }
         }
@@ -773,26 +781,23 @@ export async function startWatcher(repoRoot, onEvent) {
   function handleChange(filePath) {
     if (!running) return;
     if (debounceTimers.has(filePath)) clearTimeout(debounceTimers.get(filePath));
-    debounceTimers.set(filePath, setTimeout(() => {
-      debounceTimers.delete(filePath);
-      processFile(filePath);
-    }, 800));
+    debounceTimers.set(filePath, setTimeout(() => { debounceTimers.delete(filePath); processFile(filePath); }, 800));
   }
 
   try {
     const files = await collectFiles(sourceRoot);
     for (const filePath of files) {
-      try {
-        const watcher = fs.watch(filePath, () => handleChange(filePath));
-        watchers.set(filePath, watcher);
-      } catch {}
+      try { watchers.set(filePath, fs.watch(filePath, () => handleChange(filePath))); } catch {}
     }
   } catch {}
 
-  return {
-    stop: () => { running = false; for (const w of watchers.values()) w.close(); watchers.clear(); },
-    refresh: () => ensureState(repoRoot)
+  const watcher = {
+    stop: () => { running = false; for (const [_, w] of watchers) { try { w.close(); } catch {} } watchers.clear(); },
+    events: () => readEventLog(),
+    clear: () => { eventLog = []; }
   };
+  globalWatcher = watcher;
+  return watcher;
 }
 
 export async function detectAndStorePatterns(repoRoot, sessionId) {
