@@ -805,18 +805,20 @@ let sessionSnapshot = null;
 export async function startSessionGate(repoRoot) {
   const state = await ensureState(repoRoot);
   const sourceRoot = state.sourceRoot || repoRoot;
-  const fileHashes = new Map();
+  const fileMeta = new Map();
   try {
     const files = await collectFiles(sourceRoot);
     for (const filePath of files) {
       try {
+        const stat = await fs.stat(filePath);
         const source = await fs.readFile(filePath, "utf8");
-        fileHashes.set(filePath.replace(sourceRoot, "").replace(/\\/g, "/").replace(/^\//, ""), hashText(source));
+        const np = filePath.replace(sourceRoot, "").replace(/\\/g, "/").replace(/^\//, "");
+        fileMeta.set(np, { hash: hashText(source), mtimeMs: stat.mtimeMs, size: stat.size });
       } catch {}
     }
   } catch {}
-  sessionSnapshot = { timestamp: new Date().toISOString(), fileHashes, sourceRoot };
-  return { status: "gate_open", filesTracked: fileHashes.size };
+  sessionSnapshot = { timestamp: new Date().toISOString(), fileMeta, sourceRoot };
+  return { status: "gate_open", filesTracked: fileMeta.size };
 }
 
 export async function verifySessionGate(repoRoot) {
@@ -825,17 +827,19 @@ export async function verifySessionGate(repoRoot) {
   const sourceRoot = state.sourceRoot || repoRoot;
   const symbols = state.symbols || [];
   const relations = state.relations || [];
-  const oldHashes = sessionSnapshot.fileHashes;
+  const oldMeta = sessionSnapshot.fileMeta;
   const added = [], modified = [];
   try {
     const files = await collectFiles(sourceRoot);
     for (const filePath of files) {
       try {
-        const source = await fs.readFile(filePath, "utf8");
         const np = filePath.replace(sourceRoot, "").replace(/\\/g, "/").replace(/^\//, "");
+        const old = oldMeta.get(np);
+        const stat = await fs.stat(filePath);
+        if (old && old.mtimeMs === stat.mtimeMs && old.size === stat.size) continue;
+        const source = await fs.readFile(filePath, "utf8");
         const hh = hashText(source);
-        const old = oldHashes.get(np);
-        if (!old) added.push(np); else if (old !== hh) modified.push(np);
+        if (!old) added.push(np); else if (old.hash !== hh) modified.push(np);
       } catch {}
     }
   } catch {}
