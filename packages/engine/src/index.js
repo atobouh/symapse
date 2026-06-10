@@ -804,75 +804,58 @@ let sessionSnapshot = null;
 
 export async function startSessionGate(repoRoot) {
   const state = await ensureState(repoRoot);
-  const symbols = state.symbols || [];
-  const hashes = new Map();
-  for (const sym of symbols) {
-    hashes.set(sym.id, { bodyHash: sym.bodyHash, name: sym.qualifiedName, file: sym.filePath });
-  }
-  sessionSnapshot = { timestamp: new Date().toISOString(), hashes };
-  return { status: "gate_open", symbolsTracked: hashes.size };
+  const sourceRoot = state.sourceRoot || repoRoot;
+  const fileHashes = new Map();
+  try {
+    const files = await collectFiles(sourceRoot);
+    for (const filePath of files) {
+      try {
+        const source = await fs.readFile(filePath, "utf8");
+        fileHashes.set(filePath.replace(sourceRoot, "").replace(/\\/g, "/").replace(/^\//, ""), hashText(source));
+      } catch {}
+    }
+  } catch {}
+  sessionSnapshot = { timestamp: new Date().toISOString(), fileHashes, sourceRoot };
+  return { status: "gate_open", filesTracked: fileHashes.size };
 }
 
 export async function verifySessionGate(repoRoot) {
   if (!sessionSnapshot) return { error: "no active session. Run symapse_health --session start first." };
-
   const state = await ensureState(repoRoot);
+  const sourceRoot = state.sourceRoot || repoRoot;
   const symbols = state.symbols || [];
   const relations = state.relations || [];
-  const oldHashes = sessionSnapshot.hashes;
-
-  const added = [], modified = [], removed = [];
-  const currentHash = new Map();
+  const oldHashes = sessionSnapshot.fileHashes;
+  const added = [], modified = [];
+  try {
+    const files = await collectFiles(sourceRoot);
+    for (const filePath of files) {
+      try {
+        const source = await fs.readFile(filePath, "utf8");
+        const np = filePath.replace(sourceRoot, "").replace(/\\/g, "/").replace(/^\//, "");
+        const hh = hashText(source);
+        const old = oldHashes.get(np);
+        if (!old) added.push(np); else if (old !== hh) modified.push(np);
+      } catch {}
+    }
+  } catch {}
+  const changed = [...new Set([...added, ...modified])];
+  const linked = symbols.filter(s => changed.some(f => s.filePath === f)).map(s => s.qualifiedName);
+  const gaps = [];
   for (const sym of symbols) {
-    currentHash.set(sym.id, sym);
-    const old = oldHashes.get(sym.id);
-    if (!old) added.push({ symbol: sym.qualifiedName, file: sym.filePath });
-    else if (old.bodyHash !== sym.bodyHash) modified.push({ symbol: sym.qualifiedName, file: sym.filePath });
-  }
-  for (const [id, old] of oldHashes) {
-    if (!currentHash.has(id)) removed.push({ symbol: old.name, file: old.file });
-  }
-
-  const changedSymbols = [...added, ...modified];
-  const changedFiles = [...new Set(changedSymbols.map(s => s.file))].filter(Boolean);
-
-  const graphGaps = [];
-  for (const sym of changedSymbols.slice(0, 20)) {
-    const callers = relations.filter(r => r.targetId && oldHashes.has(r.targetId) && r.kind === "call");
-    if (callers.length === 0) {
-      const s = currentHash.get(sym.id) || symbols.find(s2 => s2.qualifiedName === sym.symbol);
-      if (s && s.kind === "function" && !s.exported) {
-        graphGaps.push({ symbol: sym.symbol, callers: 0, note: "no entry point calls this — may be dead on arrival" });
-      }
+    if (!linked.includes(sym.qualifiedName)) continue;
+    const cs = relations.filter(r => r.targetId === sym.id && r.kind === "call");
+    if (cs.length === 0 && sym.kind === "function" && !sym.exported) {
+      gaps.push({ symbol: sym.qualifiedName, callers: 0, note: "no callers in index" });
     }
   }
-
-  const registrationGaps = [];
-  for (const sym of changedSymbols.slice(0, 20)) {
-    if (sym.symbol && sym.symbol.includes("export")) {
-      registrationGaps.push({ symbol: sym.symbol, registered: false, note: "new export not verified — check if consumers exist" });
-    }
-  }
-
-  const pathIntegrity = [];
-  const testCoverage = [];
-  for (const file of changedFiles.slice(0, 10)) {
-    const testFile = file.replace(/\.(js|ts|py|go|rs|cs|php|rb|lua)$/, ".test.$1")
-      .replace("/src/", "/tests/").replace("/lib/", "/tests/");
-    const exists = symbols.some(s => s.filePath && s.filePath.includes(testFile));
-    testCoverage.push({ file, hasTest: exists });
-    if (!exists) pathIntegrity.push({ file, note: "no matching test file found" });
-  }
-
-  const totalChanged = changedFiles.length;
-  const prompt = `You modified ${changedFiles.length} files, added ${added.length} symbols, modified ${modified.length} symbols. ${graphGaps.length} symbols have no callers. ${testCoverage.filter(t => !t.hasTest).length} files have no test coverage. What does this tell you about the completeness of this implementation?`;
-
+  const prompt = "You modified " + modified.length + " files, added " + added.length + " files. " + gaps.length + " changed symbols have no callers. What does this tell you about the completeness of this implementation?";
   return {
     sessionDuration: sessionSnapshot.timestamp,
-    changedFiles, added: added.map(s => s.symbol), modified: modified.map(s => s.symbol), removed: removed.map(s => s.symbol),
-    graphConnectivity: graphGaps,
-    registrationGaps,
-    testCoverage,
+    changedFiles: changed, changedCount: changed.length,
+    added: added.slice(0, 20), modified: modified.slice(0, 20),
+    changedSymbols: linked.slice(0, 15),
+    graphConnectivity: gaps,
     prompt
   };
 }
