@@ -3,6 +3,7 @@ import path from "node:path";
 import { clarifyRequest, findSemanticOverlaps, findWhereToIntegrate, getArchitectureSummary, getContextFiles, getConventions, getDeadCodeCandidates, getImpact, getStatus, listFunctions, refreshIndex } from "../../../packages/engine/src/index.js";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 
 const repoRoot = path.resolve(process.env.SYMAPSE_REPO_ROOT || process.cwd());
 const command = process.argv[2] ?? "help";
@@ -36,7 +37,7 @@ function printHelp() {
   console.log("");
   console.log("Commands:");
   console.log("  mcp [repo]       Start MCP server for the given repo");
-  console.log("  index [repo]     Index the repository");
+  console.log("  init [repo]      Index repo + create opencode.json + AGENTS.md");
   console.log("  clarify <desc>   Analyze request for ambiguity");
   console.log("  impact <name>    Show callers, callees, and impacted files");
   console.log("  search <query>   Search symbols");
@@ -56,6 +57,21 @@ async function run() {
     const mcpPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../packages/mcp/src/index.js");
     const child = spawn("node", [fileURLToPath(new URL("../../../packages/mcp/src/index.js", import.meta.url))], { stdio: "inherit", env: { ...process.env, SYMAPSE_REPO_ROOT: mcpTarget } });
     child.on("exit", (code) => process.exit(code || 0));
+    return;
+  }
+
+  if (command === "init") {
+    const initTarget = target ? path.resolve(process.cwd(), target) : repoRoot;
+    const state = await refreshIndex(initTarget);
+
+    const opencodeConfig = JSON.stringify({ mcp: { symapse: { type: "local", command: ["npx", "symapse", "mcp", initTarget], enabled: true } } }, null, 2);
+    writeFileSync(path.join(initTarget, "opencode.json"), opencodeConfig);
+
+    const agentsContent = `# AGENTS.md\n\n## RULE 1: Always check Symapse first\n\n| Instead of... | Use... |\n|---|---|\n| Reading files for architecture | symapse_map |\n| Grepping for symbols | symapse_find |\n| Guessing where code goes | symapse_ask |\n| Finding dead code or duplicates | symapse_audit |\n| Re-indexing or checking status | symapse_health |\n\nFirst action every session: symapse_ask "<request>". If it returns questions, ASK them. If Symapse doesn't answer, read files.\n`;
+    writeFileSync(path.join(initTarget, "AGENTS.md"), agentsContent);
+
+    console.log(`[symapse] init complete — indexed ${state.summary.symbolCount} symbols across ${state.summary.fileCount} files`);
+    console.log(`[symapse] created opencode.json + AGENTS.md in ${initTarget}`);
     return;
   }
 
