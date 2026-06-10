@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, promises as fs } from "node:fs";
+import { appendFileSync, mkdirSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readIndexState, writeIndexState, ensureSessionSchema, writeSessionSignal, querySessionSignals as dbQuerySessionSignals, storeKnowledge as dbStoreKnowledge, queryKnowledge as dbQueryKnowledge, validateKnowledge as dbValidateKnowledge, recomputeWeights as dbRecomputeWeights, getSymbolWeights as dbGetSymbolWeights } from "../../db/src/store.js";
@@ -721,7 +721,7 @@ export async function startWatcher(repoRoot, onEvent) {
     const entry = { ...event, timestamp: new Date().toISOString() };
     eventLog.push(entry);
     if (eventLog.length > 500) eventLog.shift();
-    try { appendFileSync(path.join(state.storageRoot || repoRoot, ".symapse", "_watch_events.jsonl"), JSON.stringify(entry) + "\n"); } catch {}
+    try { mkdirSync(path.join(state.storageRoot || repoRoot, ".symapse"), { recursive: true }); appendFileSync(path.join(state.storageRoot || repoRoot, ".symapse", "_watch_events.jsonl"), JSON.stringify(entry) + "\n"); } catch {}
     if (onEvent) onEvent(event);
   }
 
